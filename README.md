@@ -1,6 +1,6 @@
 # nendaiki
 
-An Electron application with React
+An anime streaming application built on Electron and React.
 
 ## Recommended IDE Setup
 
