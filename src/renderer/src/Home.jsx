@@ -31,6 +31,7 @@ function Home() {
   toast.closeAll();
 
   useEffect(() => {
+    console.log(import.meta.url);
     const fetchFeaturedData = async () => {
       try {
         const currentDate = new Date();

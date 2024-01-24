@@ -353,7 +353,7 @@ type: ANIME
               options={formatOptions}
             />
           </Box>
-          <Box width='250px'>
+          <Box width='250px' _hover={{ cursor: 'pointer' }}>
             <Select
               defaultValue={{ value: 'FAVOURITES_DESC', label: 'Favorites' }}
               closeMenuOnSelect={true}
@@ -362,10 +362,22 @@ type: ANIME
               options={sortOptions}
               styles={{
                 control: (baseStyles) => ({
-                  color: variants.mocha.text.hex,
                   borderWidth: 0,
-                  // backgroundColor: 'red',
                 }),
+                singleValue: (baseStyles) => ({
+                  color: 'red',
+                }),
+                input: (baseStyles) => ({
+                  borderWidth: 0
+                }),
+                indicatorsContainer: (baseStyles) => ({
+                  display: 'none'
+                }),
+                menu: (baseStyles) => ({
+                  ...baseStyles,
+                  background: variants.mocha.crust.hex,
+                  color: variants.mocha.text.hex
+                })
               }}
             />
           </Box>

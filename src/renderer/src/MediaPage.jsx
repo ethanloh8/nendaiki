@@ -28,8 +28,24 @@ function MediaPage() {
   const [mediaData, setMediaData] = useState(null);
   const [episodesData, setEpisodesData] = useState(null);
   const hasFetchedMediaDataRef = useRef(false);
+  const [boxWidth, setBoxWidth] = useState(null);
 
   useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1450) {
+        setBoxWidth('1350px');
+      } else if (window.innerWidth >= 1100) {
+        setBoxWidth('1000px');
+      } else if (window.innerWidth >= 750) {
+        setBoxWidth('650px');
+      } else {
+        setBoxWidth('300px');
+      }
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
     const fetchMediaData = async () => {
       toast({
         id: 'loading-episodes',
@@ -134,6 +150,7 @@ function MediaPage() {
     // TODO: if no thumbnail for the episode is found, use the cover image as thumbnail instead
     // TODO: add progress bar at the bottom of each thumbnail
     // TODO: switch to kitsu and gogo api for thumbnail and streaming sources
+    // TODO: show tags/genres
     if (!hasFetchedMediaDataRef.current) {
       const cachedMedia = localStorage.getItem('media');
       const mediaObject = cachedMedia ? JSON.parse(cachedMedia) : {};
@@ -148,6 +165,10 @@ function MediaPage() {
       }
       hasFetchedMediaDataRef.current = true;
     }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    }
   }, []);
 
   return (
@@ -157,7 +178,7 @@ function MediaPage() {
         mediaData != null &&
           <Box paddingY='60px' display='flex' flexDir='column' bgColor={variants.mocha.base.hex}>
             <Image src={mediaData.bannerImage} height='320px' objectFit='cover' />
-            <Box paddingX='8%'>
+            <Box width={boxWidth} alignSelf='center'>
               <Box display='flex' flexDirection='row' width='100%' height='193px' alignSelf='center'>
                 <Image src={mediaData.coverImage.large} width='230px' height='323px' marginTop='-130px' />
                 <Box display='flex' flexDirection='column' margin='15px'>
@@ -172,7 +193,16 @@ function MediaPage() {
               </Box>
               {
                 episodesData &&
-                  <Box display='flex' rowGap='35px' columnGap='50px' flexWrap='wrap' marginTop='40px' width='100%' justifyContent='center'>
+                  <Box
+                    display='flex'
+                    rowGap='35px'
+                    columnGap='50px'
+                    flexWrap='wrap'
+                    marginTop='40px'
+                    width='100%'
+                    justifyContent='left'
+                    alignSelf='center'
+                  >
                     {episodesData.map((episode, index) => (
                       <Box
                         key={index}

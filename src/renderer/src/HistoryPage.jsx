@@ -9,7 +9,6 @@ import {
 } from '@chakra-ui/react';
 import { DeleteIcon } from '@chakra-ui/icons';
 import Bar from './components/Bar';
-import MediaBox from './components/MediaBox';
 import { useNavigate } from 'react-router-dom';
 import { variants } from '@catppuccin/palette';
 import { IoMdPlay } from "react-icons/io";
@@ -23,6 +22,28 @@ function HistoryPage() {
   const mediaObject = cachedMedia ? JSON.parse(cachedMedia) : {}
   const navigate = useNavigate();
   const [historyDisplay, setHistoryDisplay] = useState(null);
+  const [boxWidth, setBoxWidth] = useState(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1450) {
+        setBoxWidth('1350px');
+      } else if (window.innerWidth >= 1100) {
+        setBoxWidth('1000px');
+      } else if (window.innerWidth >= 750) {
+        setBoxWidth('650px');
+      } else {
+        setBoxWidth('300px');
+      }
+    }
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    }
+  }, []);
 
   useEffect(() => {
     setHistoryDisplay(
@@ -146,7 +167,14 @@ function HistoryPage() {
     <Box>
       <Bar />
       <Box paddingY='60px' display='flex' flexDir='column' bgColor={variants.mocha.base.hex}>
-        <Box display='flex' flexDir='column' justifySelf='center' marginX='12%'>
+        <Box
+          display='flex'
+          flexDir='column'
+          justifySelf='center'
+          marginX='12%'
+          width={boxWidth}
+          alignSelf='center'
+        >
           <Box display='flex' flexDir='row' justifyContent='space-between' marginTop='40px'>
             <Heading color={variants.mocha.text.hex}>History</Heading>
             <Text
@@ -160,7 +188,7 @@ function HistoryPage() {
               Clear History
             </Text>
           </Box>
-          <Box display='flex' rowGap='35px' columnGap='50px' flexWrap='wrap' marginTop='40px' width='100%' justifyContent='center'>
+          <Box display='flex' rowGap='35px' columnGap='50px' flexWrap='wrap' marginTop='40px' width='100%'>
             {historyDisplay}
           </Box>
         </Box>
