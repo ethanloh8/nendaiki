@@ -4,6 +4,7 @@ import {
   Image,
   Text,
   Heading,
+  useToast,
 } from '@chakra-ui/react';
 import { variants } from '@catppuccin/palette';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ function MediaBox({ media }) {
   }
 
   const navigate = useNavigate();
+  const toast = useToast();
 
   return (
     <Box
@@ -23,7 +25,10 @@ function MediaBox({ media }) {
       width='230px'
       flexShrink='0'
       _hover={{ cursor: 'pointer' }}
-      onClick={() => navigate('/media-page', { state: { mediaId: media.id } })}
+      onClick={() => {
+        toast.closeAll();
+        navigate('/media-page', { state: { mediaId: media.id } });
+      }}
     >
       <Image src={media.coverImage.large} borderRadius='10px' objectFit='cover' height='320px' />
       <Box

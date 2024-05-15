@@ -106,7 +106,6 @@ function SearchPage() {
   const location = useLocation();
   const [query, setQuery] = useState(location.state?.query);
   const toast = useToast();
-  toast.closeAll();
 
   const [results, setResults] = useState(null);
   const hasFetchedSearchRef = useRef(false);

@@ -14,7 +14,8 @@ import {
   DrawerCloseButton,
   Button,
   Input,
-  IconButton
+  IconButton,
+  useToast,
 } from '@chakra-ui/react';
 import { RepeatClockIcon, HamburgerIcon } from '@chakra-ui/icons';
 import { variants } from '@catppuccin/palette';
@@ -25,6 +26,7 @@ function SideDrawer() {
   const { isOpen, onOpen, onClose } = useDisclosure()
   const btnRef = useRef();
   const navigate = useNavigate();
+  const toast = useToast();
 
   return (
     <Box>
@@ -61,6 +63,7 @@ function SideDrawer() {
                 backgroundColor: 'rgba(169, 169, 169, 0.2)',
               }}
               onClick={() => {
+                toast.closeAll();
                 navigate('/');
                 onClose();
               }}
@@ -79,7 +82,8 @@ function SideDrawer() {
                 backgroundColor: 'rgba(169, 169, 169, 0.2)',
               }}
               onClick={() => {
-                navigate('/history-page')
+                toast.closeAll();
+                navigate('/history-page');
                 onClose();
               }}
               display='flex'

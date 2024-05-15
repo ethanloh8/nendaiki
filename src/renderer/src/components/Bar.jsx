@@ -7,6 +7,7 @@ import {
   Fade,
   useDisclosure,
   Text,
+  useToast,
 } from '@chakra-ui/react';
 import { SearchIcon } from '@chakra-ui/icons';
 import { variants } from '@catppuccin/palette';
@@ -20,9 +21,11 @@ function Bar() {
   const location = useLocation();
   const { isOpen, onToggle } = useDisclosure();
   const [cursorStyle, setCursorStyle] = useState("");
+  const toast = useToast();
 
   const handleSuggestionClick = (suggestion) => {
     const prevLocation = location.pathname;
+    toast.closeAll();
     navigate('/media-page', { state: { mediaId: suggestion.id } });
     if (prevLocation == '/media-page') {
       window.location.reload();
@@ -31,6 +34,7 @@ function Bar() {
 
   const handleViewMore = (value) => {
     const prevLocation = location.pathname;
+    toast.closeAll();
     navigate('/search-page', { state: { query: value } })
     if (prevLocation == '/search-page') {
       window.location.reload();
@@ -102,7 +106,17 @@ function Bar() {
 
       <Box display='flex' flexDir='row' columnGap='50px' marginLeft='50px'>
         <SideDrawer />
-        <Box width='210px' _hover={{ cursor: 'pointer' }} display='flex' justifyContent='space-between' onClick={() => navigate('/')} alignItems='center'>
+        <Box
+          width='210px'
+          _hover={{ cursor: 'pointer' }}
+          display='flex'
+          justifyContent='space-between'
+          onClick={() => {
+            toast.closeAll();
+            navigate('/');
+          }}
+          alignItems='center'
+        >
           <Icon as={FaPlayCircle} boxSize='35px' color={variants.mocha.red.hex} />
           <Heading
             fontSize='35px'

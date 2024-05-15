@@ -28,7 +28,6 @@ function Home() {
   const trendingBoxRef = useRef(null);
   const historyBoxRef = useRef(null);
   const toast = useToast();
-  toast.closeAll();
 
   useEffect(() => {
     console.log(import.meta.url);

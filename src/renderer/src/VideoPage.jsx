@@ -26,7 +26,6 @@ function VideoPage() {
 
   const navigate = useNavigate();
   const toast = useToast();
-  toast.closeAll();
   const mediaObject = JSON.parse(localStorage.getItem('media'));
   const currentMedia = mediaObject[episodeData.mediaId];
   const mediaData = currentMedia.mediaData;
@@ -184,7 +183,10 @@ function VideoPage() {
             <Heading
               color={variants.mocha.mauve.hex}
               fontSize='18px'
-              onClick={() => navigate('/media-page', { state: { mediaId: mediaData.id } })}
+              onClick={() => {
+                toast.closeAll();
+                navigate('/media-page', { state: { mediaId: mediaData.id } })
+              }}
               _hover={{ cursor: 'pointer', color: variants.mocha.text.hex, transition: 'color 0.4s ease', textDecoration: 'underline' }}
             >
               {mediaData.title.english ? mediaData.title.english : mediaData.title.romaji}
@@ -210,6 +212,7 @@ function VideoPage() {
                   marginTop='8px'
                   flexDir='row'
                   onClick={() => {
+                    toast.closeAll();
                     navigate('/video-page', { state: { episodeData: { episodeIndex: episodeData.episodeIndex + 1, mediaId: episodeData.mediaId } } });
                     window.location.reload();
                   }}

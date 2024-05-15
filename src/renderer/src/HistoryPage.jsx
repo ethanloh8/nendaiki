@@ -5,7 +5,7 @@ import {
   IconButton,
   Text,
   Heading,
-  Image
+  Image,
 } from '@chakra-ui/react';
 import { DeleteIcon } from '@chakra-ui/icons';
 import Bar from './components/Bar';
@@ -15,7 +15,6 @@ import { IoMdPlay } from "react-icons/io";
 
 function HistoryPage() {
   const toast = useToast();
-  toast.closeAll();
   const cachedHistory = localStorage.getItem('history');
   const [historyObject, setHistoryObject] = useState(cachedHistory ? JSON.parse(cachedHistory) : {});
   const cachedMedia = localStorage.getItem('media');
@@ -70,7 +69,10 @@ function HistoryPage() {
             <Box
               key={index}
               textAlign="left"
-              onClick={() => navigate('/video-page', { state: { episodeData: episodeData }})}
+              onClick={() => {
+                toast.closeAll();
+                navigate('/video-page', { state: { episodeData: episodeData }});
+              }}
               width='300px'
               position='relative'
               _before={{
@@ -96,7 +98,7 @@ function HistoryPage() {
               }}
             >
               <Box borderRadius='10px' position='relative'>
-                <Image src={episode.img} width='100%' height='169px' objectFit='cover' borderRadius='10px' />
+                <Image src={episode.image} width='100%' height='169px' objectFit='cover' borderRadius='10px' />
                 <IconButton
                   icon={<IoMdPlay />}
                   isRound='true'
@@ -118,6 +120,7 @@ function HistoryPage() {
                 color={variants.mocha.mauve.hex}
                 onClick={(e) => {
                   e.stopPropagation();
+                  toast.closeAll();
                   navigate('/media-page', { state: { mediaId: episodeData.mediaId } });
                 }}
                 _hover={{ cursor: 'pointer', color: variants.mocha.text.hex, transition: 'color 0.4s ease', textDecoration: 'underline' }}

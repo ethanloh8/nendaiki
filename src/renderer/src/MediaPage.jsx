@@ -23,7 +23,6 @@ function MediaPage() {
   }
 
   const toast = useToast();
-  toast.closeAll();
   const navigate = useNavigate();
   const [mediaData, setMediaData] = useState();
   const [episodesData, setEpisodesData] = useState([]);
@@ -187,36 +186,9 @@ function MediaPage() {
 
   useEffect(() => {
     const fetchEpisodes = async () => {
-      // const getEpisodeData = async (rangeStart) => {
-      //   console.log('Requesting more episode data');
-      //   let response = await axios.request({
-      //     method: 'get',
-      //     url: `https://kitsu.io/api/edge/anime/${mediaData.idKitsu}/episodes?page[limit]=20&page[offset]=${rangeStart}`,
-      //   });
-
-      //   const shiftedResponse = {};
-      //   Object.keys(response.data.data).forEach(key => {
-      //     const newKey = parseInt(key, 10) + rangeStart;
-      //     shiftedResponse[newKey] = response.data.data[key];
-      //   });
-
-      //   const newEpisodesData = { ...episodesData, ...shiftedResponse };
-      //   setEpisodesData(newEpisodesData);
-      //   return newEpisodesData;
-      // }
-
       if (selectedRange) {
         const rangeStart = parseInt(selectedRange.match(/\d+/)[0], 10) - 1;
         const rangeEnd = rangeStart + 50;
-
-        // let episodes;
-        // if (episodesData[rangeStart] == null) {
-        //   episodes = await getEpisodeData(rangeStart);
-        //   newMediaObject[mediaData.id].episodesData = episodes;
-        //   localStorage.setItem('media', JSON.stringify(newMediaObject));
-        // } else {
-        //   episodes = episodesData;
-        // }
 
         setEpisodesDisplay(
           <Box
@@ -233,7 +205,10 @@ function MediaPage() {
               <Box
                 key={index}
                 textAlign="left"
-                onClick={() => navigate('/video-page', { state: { episodeData: { episodeIndex: index, mediaId: mediaData.id } } })}
+                onClick={() => {
+                  toast.closeAll();
+                  navigate('/video-page', { state: { episodeData: { episodeIndex: index, mediaId: mediaData.id } } });
+                }}
                 width='300px'
                 position='relative'
                 _before={{

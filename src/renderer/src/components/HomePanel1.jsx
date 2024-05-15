@@ -6,6 +6,7 @@ import {
   Heading,
   Button,
   Stack,
+  useToast,
 } from '@chakra-ui/react';
 import {
   ChevronLeftIcon,
@@ -21,6 +22,7 @@ function HomePanel1({ popularMedia }) {
   }
 
   const navigate = useNavigate();
+  const toast = useToast();
   const panelDescriptionRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -67,7 +69,10 @@ function HomePanel1({ popularMedia }) {
             width='110px'
             alignSelf='center'
             marginTop='5%'
-            onClick={() => navigate('/media-page', { state: { mediaId: popularMedia[currentIndex].id } })}
+            onClick={() => {
+              toast.closeAll();
+              navigate('/media-page', { state: { mediaId: popularMedia[currentIndex].id } });
+            }}
             display='flex'
             alignItems='center'
           >
