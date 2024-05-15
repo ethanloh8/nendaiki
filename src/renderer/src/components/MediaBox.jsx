@@ -3,7 +3,7 @@ import {
   Box,
   Image,
   Text,
-  Heading
+  Heading,
 } from '@chakra-ui/react';
 import { variants } from '@catppuccin/palette';
 import { useNavigate } from 'react-router-dom';
@@ -75,4 +75,3 @@ function MediaBox({ media }) {
 }
 
 export default MediaBox;
-

@@ -3,9 +3,7 @@ import { join, dirname } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { exec, spawn, execFile } from 'child_process';
-import '../proxy.js';
-
-let proxyServerProcess;
+import '../../api.consumet.org/src/main.ts';
 
 function createWindow() {
   // Create the browser window.
@@ -44,8 +42,8 @@ function createWindow() {
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
   // Start proxy server
-  const proxyScriptPath = join(__dirname, '../proxy.js');
-  proxyServerProcess = exec(`node ${proxyScriptPath}`);
+  const consumetScriptPath = join(__dirname, '../../api.consumet.org/src/main.ts');
+  const consumetServerProcess = exec(`node ${consumetScriptPath}`);
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')

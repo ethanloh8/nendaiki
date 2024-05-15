@@ -25,10 +25,13 @@ function MediaPage() {
   const toast = useToast();
   toast.closeAll();
   const navigate = useNavigate();
-  const [mediaData, setMediaData] = useState(null);
-  const [episodesData, setEpisodesData] = useState(null);
+  const [mediaData, setMediaData] = useState();
+  const [episodesData, setEpisodesData] = useState([]);
   const hasFetchedMediaDataRef = useRef(false);
   const [boxWidth, setBoxWidth] = useState(null);
+  const [selectedRange, setSelectedRange] = useState(null);
+  const [episodesDisplay, setEpisodesDisplay] = useState(null);
+  const [episodeRanges, setEpisodeRanges] = useState(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -95,30 +98,41 @@ function MediaPage() {
           data: data
         });
 
-        setMediaData(response.data.data.Media);
+        const n = response.data.data.Media.episodes;
+        const rangeSize = 50;
+        const numRanges = Math.ceil(n / rangeSize);
+        const ranges = [];
+
+        for (let i = 0; i < numRanges; i++) {
+          const start = i * rangeSize + 1;
+          const end = Math.min((i + 1) * rangeSize, n);
+          ranges.push(`${start}-${end}`);
+        }
+
+        const newMediaData = { ...response.data.data.Media, ranges: ranges };
+        setMediaData(newMediaData);
+        setSelectedRange(ranges[0]);
+
         try {
           const response1 = await axios.request({
             method: 'get',
-            url: 'http://localhost:3001/episode',
-            params: {
-              id: mediaId
-            }
+            url: `http://localhost:3000/meta/anilist/episodes/${mediaId}`,
           });
-          setEpisodesData(response1.data[0].episodes)
+          setEpisodesData(response1.data);
 
           const cachedMediaObject = localStorage.getItem('media');
           const newMediaObject = cachedMediaObject
             ? {
                 ...JSON.parse(cachedMediaObject),
                 [response.data.data.Media.id]: {
-                  mediaData: response.data.data.Media,
-                  episodesData: response1.data[0].episodes
+                  mediaData: newMediaData,
+                  episodesData: response1.data,
                 }
               }
             : {
                 [response.data.data.Media.id]: {
-                  mediaData: response.data.data.Media,
-                  episodesData: response1.data[0].episodes
+                  mediaData: newMediaData,
+                  episodesData: response1.data,
                 }
               };
 
@@ -149,7 +163,6 @@ function MediaPage() {
     // TODO: display 'No Videos Found' for media with no sources
     // TODO: if no thumbnail for the episode is found, use the cover image as thumbnail instead
     // TODO: add progress bar at the bottom of each thumbnail
-    // TODO: switch to kitsu and gogo api for thumbnail and streaming sources
     // TODO: show tags/genres
     if (!hasFetchedMediaDataRef.current) {
       const cachedMedia = localStorage.getItem('media');
@@ -159,6 +172,7 @@ function MediaPage() {
         console.log(`Using cached data for media ${mediaId}`);
         setMediaData(mediaObject[mediaId].mediaData);
         setEpisodesData(mediaObject[mediaId].episodesData);
+        setSelectedRange(mediaObject[mediaId].mediaData.ranges[0]);
       } else {
         console.log(`Requesting data for media`);
         fetchMediaData();
@@ -170,6 +184,136 @@ function MediaPage() {
       window.removeEventListener('resize', handleResize);
     }
   }, []);
+
+  useEffect(() => {
+    const fetchEpisodes = async () => {
+      // const getEpisodeData = async (rangeStart) => {
+      //   console.log('Requesting more episode data');
+      //   let response = await axios.request({
+      //     method: 'get',
+      //     url: `https://kitsu.io/api/edge/anime/${mediaData.idKitsu}/episodes?page[limit]=20&page[offset]=${rangeStart}`,
+      //   });
+
+      //   const shiftedResponse = {};
+      //   Object.keys(response.data.data).forEach(key => {
+      //     const newKey = parseInt(key, 10) + rangeStart;
+      //     shiftedResponse[newKey] = response.data.data[key];
+      //   });
+
+      //   const newEpisodesData = { ...episodesData, ...shiftedResponse };
+      //   setEpisodesData(newEpisodesData);
+      //   return newEpisodesData;
+      // }
+
+      if (selectedRange) {
+        const rangeStart = parseInt(selectedRange.match(/\d+/)[0], 10) - 1;
+        const rangeEnd = rangeStart + 50;
+
+        // let episodes;
+        // if (episodesData[rangeStart] == null) {
+        //   episodes = await getEpisodeData(rangeStart);
+        //   newMediaObject[mediaData.id].episodesData = episodes;
+        //   localStorage.setItem('media', JSON.stringify(newMediaObject));
+        // } else {
+        //   episodes = episodesData;
+        // }
+
+        setEpisodesDisplay(
+          <Box
+            display='flex'
+            rowGap='35px'
+            columnGap='50px'
+            flexWrap='wrap'
+            marginTop='40px'
+            width='100%'
+            justifyContent='left'
+            alignSelf='center'
+          >
+            {Object.values(episodesData).slice(rangeStart, rangeEnd).map((episode, index) => (
+              <Box
+                key={index}
+                textAlign="left"
+                onClick={() => navigate('/video-page', { state: { episodeData: { episodeIndex: index, mediaId: mediaData.id } } })}
+                width='300px'
+                position='relative'
+                _before={{
+                  content: '""',
+                  display: 'block',
+                  position: 'absolute',
+                  borderRadius: '10px',
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  left: 0,
+                  height: 169,
+                  backgroundColor: 'black',
+                  opacity: 0.5,
+                  zIndex: 1,
+                  transition: 'opacity 0.3s ease',
+                }}
+                _hover={{
+                  cursor: 'pointer',
+                  '&::before': {
+                   opacity: 0,
+                  },
+                }}
+              >
+                <Box borderRadius='10px' position='relative'>
+                  <Image
+                    src={episode.image}
+                    width='100%'
+                    height='169px'
+                    objectFit='cover'
+                    borderRadius='10px'
+                  />
+                  <IconButton
+                    icon={<IoMdPlay />}
+                    isRound='true'
+                    bgColor='rgba(0, 0, 0, 0.8)'
+                    fontSize='40px'
+                    textColor='white'
+                    boxSize='75px'
+                    position='absolute'
+                    top='50%'
+                    left='50%'
+                    transform='translate(-50%, -50%)'
+                    _hover={{ bgColor: 'rgba(0, 0, 0, 0.8)' }}
+                  />
+                </Box>
+                <Text margin='5px' color={variants.mocha.subtext1.hex}>E{index + rangeStart + 1} - {episode.title}</Text>
+              </Box>
+            ))}
+          </Box>
+        );
+      }
+    }
+
+    fetchEpisodes();
+  }, [selectedRange, mediaData, episodesData]);
+
+  useEffect(() => {
+    if (mediaData) {
+      setEpisodeRanges(
+        <Box display='flex' justifyContent='space-evenly' flexWrap='wrap' marginTop='12px'>
+          {mediaData.ranges.map((range, ep) => (
+            <Box
+              key={ep}
+              padding='6px'
+              borderRadius='5px'
+              borderWidth='1px'
+              display='inline-block'
+              style={{ cursor: "pointer" }}
+              _hover={{ bgColor: range === selectedRange ? 'gray.500' : 'gray.100' }}
+              bgColor={range == selectedRange ? 'gray.500' : 'white'}
+              onClick={() => setSelectedRange(range)}
+            >
+              {range}
+            </Box>
+          ))}
+        </Box>
+      );
+    }
+  }, [mediaData, selectedRange]);
 
   return (
     <Box>
@@ -193,64 +337,9 @@ function MediaPage() {
               </Box>
               {
                 episodesData &&
-                  <Box
-                    display='flex'
-                    rowGap='35px'
-                    columnGap='50px'
-                    flexWrap='wrap'
-                    marginTop='40px'
-                    width='100%'
-                    justifyContent='left'
-                    alignSelf='center'
-                  >
-                    {episodesData.map((episode, index) => (
-                      <Box
-                        key={index}
-                        textAlign="left"
-                        onClick={() => navigate('/video-page', { state: { episodeData: { episodeIndex: index, mediaId: mediaData.id } } })}
-                        width='300px'
-                        position='relative'
-                        _before={{
-                          content: '""',
-                          display: 'block',
-                          position: 'absolute',
-                          borderRadius: '10px',
-                          top: 0,
-                          right: 0,
-                          bottom: 0,
-                          left: 0,
-                          height: 169,
-                          backgroundColor: 'black',
-                          opacity: 0.5,
-                          zIndex: 1,
-                          transition: 'opacity 0.3s ease',
-                        }}
-                        _hover={{
-                          cursor: 'pointer',
-                          '&::before': {
-                           opacity: 0,
-                          },
-                        }}
-                      >
-                        <Box borderRadius='10px' position='relative'>
-                          <Image src={episode.img} width='100%' height='169px' objectFit='cover' borderRadius='10px' />
-                          <IconButton
-                            icon={<IoMdPlay />}
-                            isRound='true'
-                            bgColor='rgba(0, 0, 0, 0.8)'
-                            fontSize='40px'
-                            textColor='white'
-                            boxSize='75px'
-                            position='absolute'
-                            top='50%'
-                            left='50%'
-                            transform='translate(-50%, -50%)'
-                            _hover={{ bgColor: 'rgba(0, 0, 0, 0.8)' }}
-                          />
-                        </Box>
-                        <Text margin='5px' color={variants.mocha.subtext1.hex}>E{index + 1} - {episode.title}</Text>
-                      </Box>
-                    ))}
+                  <Box>
+                    {episodeRanges}
+                    {episodesDisplay}
                   </Box>
               }
             </Box>

@@ -49,13 +49,7 @@ function VideoPage() {
       try {
         const response = await axios.request({
           method: 'get',
-          url: 'http://localhost:3001/source',
-          params: {
-            providerId: episodesData.providerId,
-            watchId: episodes[episodeData.episodeIndex].id,
-            episode: episodeData.episodeNumber,
-            id: episodeData.mediaId
-          }
+          url: `http://localhost:3000/meta/anilist/watch/${episodesData[episodeData.episodeIndex].id}`,
         });
 
         const defaultSource = response.data.sources.find(source => source.quality === 'default').url;
@@ -243,7 +237,7 @@ function VideoPage() {
                   }}
                 >
                   <Box position='relative' borderRadius='10px'>
-                    <Image src={episodes[episodeData.episodeIndex + 1].img} width='240px' height='135px' objectFit='cover' borderRadius='10px' />
+                    <Image src={episodes[episodeData.episodeIndex + 1].image} width='240px' height='135px' objectFit='cover' borderRadius='10px' />
                     <IconButton
                       icon={<IoMdPlay />}
                       isRound='true'
