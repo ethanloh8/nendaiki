@@ -36,16 +36,17 @@ function Home() {
         const currentDate = new Date();
         const currentMonth = currentDate.getMonth();
         let currentSeason;
-        if (currentMonth >= 2 && currentMonth <= 4) {
+        if (currentMonth >= 3 && currentMonth <= 5) {
          currentSeason = 'SPRING';
-        } else if (currentMonth >= 5 && currentMonth <= 7) {
+        } else if (currentMonth >= 6 && currentMonth <= 8) {
          currentSeason = 'SUMMER';
-        } else if (currentMonth >= 8 && currentMonth <= 10) {
+        } else if (currentMonth >= 9 && currentMonth <= 11) {
          currentSeason = 'FALL';
         } else {
          currentSeason = 'WINTER';
         }
         const currentYear = currentDate.getFullYear();
+        console.log(currentSeason)
 
         const data = JSON.stringify({
           query: `
@@ -124,7 +125,8 @@ function Home() {
     ref.current.scrollTo({ left: currentPosition + (maxScrollLength / 2), behavior: 'smooth' })
   }
 
-  // TODO: cache trending anime data for a day
+  // TODO: cache trending anime data for a week
+  // TODO: fix arrows for side scrolling
   return (
     <Box>
       <Bar />
@@ -162,6 +164,7 @@ function Home() {
                     .reduce((acc, [key, value]) => {
                       const mediaId = JSON.parse(value).mediaId;
                       if (!acc.some(mediaBox => mediaBox.props.media.id === mediaId)) {
+                        // if problem occurs here, delete history from cache
                         acc.push(<MediaBox key={key} media={mediaObject[mediaId].mediaData} />);
                       }
                       return acc;

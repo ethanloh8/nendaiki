@@ -32,6 +32,20 @@ function MediaPage() {
   const [episodesDisplay, setEpisodesDisplay] = useState(null);
   const [episodeRanges, setEpisodeRanges] = useState(null);
 
+  const getRanges = (n) => {
+    const rangeSize = 50;
+    const numRanges = Math.ceil(n / rangeSize);
+    const ranges = [];
+
+    for (let i = 0; i < numRanges; i++) {
+      const start = i * rangeSize + 1;
+      const end = Math.min((i + 1) * rangeSize, n);
+      ranges.push(`${start}-${end}`);
+    }
+
+    return ranges;
+  }
+
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 1450) {
@@ -83,6 +97,9 @@ function MediaPage() {
                 meanScore
                 popularity
                 episodes
+                nextAiringEpisode {
+                  timeUntilAiring
+                }
               }
             }
           `
@@ -97,20 +114,10 @@ function MediaPage() {
           data: data
         });
 
-        const n = response.data.data.Media.episodes;
-        const rangeSize = 50;
-        const numRanges = Math.ceil(n / rangeSize);
-        const ranges = [];
-
-        for (let i = 0; i < numRanges; i++) {
-          const start = i * rangeSize + 1;
-          const end = Math.min((i + 1) * rangeSize, n);
-          ranges.push(`${start}-${end}`);
-        }
-
+        const ranges = getRanges(response.data.data.Media.episodes);
         const newMediaData = { ...response.data.data.Media, ranges: ranges };
+        newMediaData.nextAiringEpisode = new Date(Date.now() + (newMediaData.nextAiringEpisode?.timeUntilAiring * 1000));
         setMediaData(newMediaData);
-        setSelectedRange(ranges[0]);
 
         try {
           const response1 = await axios.request({
@@ -118,6 +125,13 @@ function MediaPage() {
             url: `http://localhost:3000/meta/anilist/episodes/${mediaId}`,
           });
           setEpisodesData(response1.data);
+
+          // in case if anilist returns number of episodes as null
+          if (!ranges[0]) {
+            newMediaData.episodes = response1.data.length;
+            newMediaData.ranges = getRanges(response1.data.length);
+            setMediaData(newMediaData);
+          }
 
           const cachedMediaObject = localStorage.getItem('media');
           const newMediaObject = cachedMediaObject
@@ -136,8 +150,10 @@ function MediaPage() {
               };
 
           localStorage.setItem('media', JSON.stringify(newMediaObject));
+          setSelectedRange(newMediaData.ranges[0]);
           toast.close('loading-episodes');
         } catch (error) {
+          console.log(error);
           toast({
             title: 'No episodes found',
             status: 'error',
@@ -158,16 +174,15 @@ function MediaPage() {
       }
     };
 
-    // TODO: keep track of release schedule and update episode cache accordingly
-    // TODO: display 'No Videos Found' for media with no sources
-    // TODO: if no thumbnail for the episode is found, use the cover image as thumbnail instead
-    // TODO: add progress bar at the bottom of each thumbnail
     // TODO: show tags/genres
+    // TODO: show when next episode airs
     if (!hasFetchedMediaDataRef.current) {
       const cachedMedia = localStorage.getItem('media');
       const mediaObject = cachedMedia ? JSON.parse(cachedMedia) : {};
 
-      if (mediaObject[mediaId]) {
+      if (mediaObject[mediaId] &&
+        (!mediaObject[mediaId].nextAiringEpisode ||
+        Date.now() < new Date(mediaObject[mediaId].nextAiringEpisode))) {
         console.log(`Using cached data for media ${mediaId}`);
         setMediaData(mediaObject[mediaId].mediaData);
         setEpisodesData(mediaObject[mediaId].episodesData);
@@ -201,63 +216,89 @@ function MediaPage() {
             justifyContent='left'
             alignSelf='center'
           >
-            {Object.values(episodesData).slice(rangeStart, rangeEnd).map((episode, index) => (
-              <Box
-                key={index}
-                textAlign="left"
-                onClick={() => {
-                  toast.closeAll();
-                  navigate('/video-page', { state: { episodeData: { episodeIndex: index, mediaId: mediaData.id } } });
-                }}
-                width='300px'
-                position='relative'
-                _before={{
-                  content: '""',
-                  display: 'block',
-                  position: 'absolute',
-                  borderRadius: '10px',
-                  top: 0,
-                  right: 0,
-                  bottom: 0,
-                  left: 0,
-                  height: 169,
-                  backgroundColor: 'black',
-                  opacity: 0.5,
-                  zIndex: 1,
-                  transition: 'opacity 0.3s ease',
-                }}
-                _hover={{
-                  cursor: 'pointer',
-                  '&::before': {
-                   opacity: 0,
-                  },
-                }}
-              >
-                <Box borderRadius='10px' position='relative'>
-                  <Image
-                    src={episode.image}
-                    width='100%'
-                    height='169px'
-                    objectFit='cover'
-                    borderRadius='10px'
-                  />
-                  <IconButton
-                    icon={<IoMdPlay />}
-                    isRound='true'
-                    bgColor='rgba(0, 0, 0, 0.8)'
-                    fontSize='40px'
-                    textColor='white'
-                    boxSize='75px'
-                    position='absolute'
-                    top='50%'
-                    left='50%'
-                    transform='translate(-50%, -50%)'
-                    _hover={{ bgColor: 'rgba(0, 0, 0, 0.8)' }}
-                  />
+            {Object.values(episodesData).slice(rangeStart, rangeEnd).map((episode, index) => {
+              const episodeIndex = index + rangeStart;
+              const progress = episode.duration > 0 ? (episode.time / episode.duration) * 100 : 0;
+
+              return (
+                <Box
+                  key={index}
+                  textAlign="left"
+                  onClick={() => {
+                    toast.closeAll();
+                    navigate('/video-page', { state: { episodeData: { episodeIndex: index, mediaId: mediaData.id } } });
+                  }}
+                  width='300px'
+                  position='relative'
+                  _before={{
+                    content: '""',
+                    display: 'block',
+                    position: 'absolute',
+                    borderRadius: '10px',
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    left: 0,
+                    height: 169,
+                    backgroundColor: 'black',
+                    opacity: 0.5,
+                    zIndex: 1,
+                    transition: 'opacity 0.3s ease',
+                  }}
+                  _hover={{
+                    cursor: 'pointer',
+                    '&::before': {
+                      opacity: 0,
+                    },
+                  }}
+                >
+                  <Box borderRadius='10px' position='relative'>
+                    <Image
+                      src={episode.image}
+                      width='100%'
+                      height='169px'
+                      objectFit='cover'
+                      borderRadius='10px'
+                    />
+                    <IconButton
+                      icon={<IoMdPlay />}
+                      isRound='true'
+                      bgColor='rgba(0, 0, 0, 0.8)'
+                      fontSize='40px'
+                      textColor='white'
+                      boxSize='75px'
+                      position='absolute'
+                      top='50%'
+                      left='50%'
+                      transform='translate(-50%, -50%)'
+                      _hover={{ bgColor: 'rgba(0, 0, 0, 0.8)' }}
+                    />
+                    {progress > 0 &&
+                      <Box
+                        position='absolute'
+                        bottom='0'
+                        left='0'
+                        height='5px'
+                        width='100%'
+                        bg='gray.600'
+                        borderRadius='0 0 10px 10px'
+                        overflow='hidden'
+                        zIndex='2'
+                        opacity='0.8'
+                      >
+                        <Box
+                          height='100%'
+                          width={`${progress}%`}
+                          bg='rgba(149,2,61,0.7)'
+                          transition='width 0.3s ease'
+                        />
+                      </Box>
+                    }
+                    </Box>
+                  <Text margin='5px' color={variants.mocha.subtext1.hex}>E{index + rangeStart + 1} {episode.title && '-'} {episode.title}</Text>
                 </Box>
-                <Text margin='5px' color={variants.mocha.subtext1.hex}>E{index + rangeStart + 1} - {episode.title}</Text>
-              </Box>
-            ))}
+              );
+            })}
           </Box>
         );
       }

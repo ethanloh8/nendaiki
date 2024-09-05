@@ -21,6 +21,7 @@ import { RepeatClockIcon, HamburgerIcon } from '@chakra-ui/icons';
 import { variants } from '@catppuccin/palette';
 import { useNavigate } from 'react-router-dom';
 import { IoMdHome } from "react-icons/io";
+import { SiAnilist } from "react-icons/si";
 
 function SideDrawer() {
   const { isOpen, onOpen, onClose } = useDisclosure()
@@ -93,6 +94,26 @@ function SideDrawer() {
             >
               <RepeatClockIcon color={variants.mocha.text.hex} boxSize='20px' />
               <Text fontSize='16px' color={variants.mocha.subtext0.hex}>History</Text>
+            </Box>
+            <Box
+              width='100%'
+              _hover={{
+                cursor: 'pointer',
+                backgroundColor: 'rgba(169, 169, 169, 0.2)',
+              }}
+              onClick={() => {
+                const client_id = 18725;
+                const redirect_uri = 'http://127.0.0.1:8000/anilist/';
+                window.open(`https://anilist.co/api/v2/oauth/authorize?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=code`, '_blank');
+                onClose();
+              }}
+              display='flex'
+              columnGap='20px'
+              paddingX='20px'
+              paddingY='8px'
+            >
+              <SiAnilist color={variants.mocha.text.hex} boxSize='20px' />
+              <Text fontSize='16px' color={variants.mocha.subtext0.hex}>Anilist Integration</Text>
             </Box>
           </DrawerBody>
 

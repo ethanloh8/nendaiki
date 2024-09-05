@@ -1,9 +1,10 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join, dirname } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { exec, spawn, execFile } from 'child_process';
 import '../../api.consumet.org/src/main.ts';
+import '../auth-server/index.js';
 
 function createWindow() {
   // Create the browser window.
@@ -41,10 +42,6 @@ function createWindow() {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Start proxy server
-  const consumetScriptPath = join(__dirname, '../../api.consumet.org/src/main.ts');
-  const consumetServerProcess = exec(`node ${consumetScriptPath}`);
-
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -63,10 +60,9 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  app.on('before-quit', () => {
-    if (proxyServerProcess) {
-      proxyServerProcess.kill();
-    }
+  ipcMain.on('oauth-code', (code) => {
+    // Handle the OAuth code here, you can pass it to the renderer process if needed
+    console.log('Received OAuth code:', code);
   });
 })
 

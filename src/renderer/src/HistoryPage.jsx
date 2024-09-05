@@ -64,6 +64,7 @@ function HistoryPage() {
           hours = hours < 10 ? `0${hours}` : hours;
           minutes = minutes < 10 ? `0${minutes}` : minutes;
           const formattedDateStr = `${month}/${day}/${year}`;
+          const progress = episode.duration > 0 ? (episode.time / episode.duration) * 100 : 0;
 
           return (
             <Box
@@ -112,6 +113,27 @@ function HistoryPage() {
                   transform='translate(-50%, -50%)'
                   _hover={{ bgColor: 'rgba(0, 0, 0, 0.8)' }}
                 />
+                {progress > 0 &&
+                  <Box
+                    position='absolute'
+                    bottom='0'
+                    left='0'
+                    height='5px'
+                    width='100%'
+                    bg='gray.600'
+                    borderRadius='0 0 10px 10px'
+                    overflow='hidden'
+                    zIndex='2'
+                    opacity='0.8'
+                  >
+                    <Box
+                      height='100%'
+                      width={`${progress}%`}
+                      bg='rgba(149,2,61,0.7)'
+                      transition='width 0.3s ease'
+                    />
+                  </Box>
+                }
               </Box>
               <Text
                 marginX='5px'

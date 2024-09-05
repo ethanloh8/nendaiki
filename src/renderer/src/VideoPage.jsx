@@ -51,6 +51,22 @@ function VideoPage() {
           url: `http://localhost:3000/meta/anilist/watch/${episodesData[episodeData.episodeIndex].id}`,
         });
 
+        try {
+          const skips = await axios.request({
+            method: 'get',
+            url: `https://api.aniskip.com/v2/skip-times/${mediaData.idMal}/${episodeData.episodeIndex + 1}?types=op&types=ed&episodeLength=0`,
+          });
+
+          if (skips.data.found) {
+            const opInterval = skips.data.results[0].interval;
+            const edInterval = skips.data.results[1].interval;
+            episodes[episodeData.episodeIndex].opInterval = opInterval;
+            episodes[episodeData.episodeIndex].edInterval = edInterval;
+          }
+        } catch (error) {
+          console.log("No skips found yet for this episode's OP and ED");
+        }
+
         const defaultSource = response.data.sources.find(source => source.quality === 'default').url;
         episodes[episodeData.episodeIndex].source = defaultSource;
         const newMediaObject = mediaObject;
@@ -94,7 +110,30 @@ function VideoPage() {
       hasFetchedSourceRef.current = true;
     }
 
+    if (player && player.playing !== true && episodesData[episodeData.episodeIndex].time) {
+       player.once('canplay', event => {
+         player.currentTime = episodesData[episodeData.episodeIndex].time;
+       });
+    }
+
+
+    window.addEventListener('unload', function(event) {
+      if (player) {
+        const cachedMedia = JSON.parse(localStorage.getItem('media'));
+        cachedMedia[episodeData.mediaId].episodesData[episodeData.episodeIndex].time = player.currentTime
+        cachedMedia[episodeData.mediaId].episodesData[episodeData.episodeIndex].duration = player.duration
+        localStorage.setItem('media', JSON.stringify(cachedMedia))
+      }
+    })
+
     return () => {
+      if (player) {
+        const cachedMedia = JSON.parse(localStorage.getItem('media'));
+        cachedMedia[episodeData.mediaId].episodesData[episodeData.episodeIndex].time = player.currentTime
+        cachedMedia[episodeData.mediaId].episodesData[episodeData.episodeIndex].duration = player.duration
+        localStorage.setItem('media', JSON.stringify(cachedMedia))
+      }
+
       if (player) {
         player.destroy();
       }
@@ -154,10 +193,8 @@ function VideoPage() {
     });
   }
 
-  // TODO: fix video stuttering in wayland
-  // TODO: conditionally render episode descriptions (for current and next episode) if description is not null and of length 0
-  // TODO: make cache store current timestamp and have the caching occur when page is being navigated away
-  // TODO: use ani-skip api to be able to skip intro/eds
+  // TODO: finish skip button
+  // TODO: add scene searching with trace.moe
   return (
     <Box>
       <Bar />
@@ -165,8 +202,27 @@ function VideoPage() {
         <Box width='100%' textAlign='center' bg='black' display='flex' justifyContent='center'>
           {
             source &&
-              <Box width='75%' maxHeight='75%' objectFit='initial'>
+              <Box width='75%' maxHeight='75%' objectFit='initial' position='relative'>
                 <video ref={videoRef} controls poster={episodes[episodeData.episodeIndex].img}></video>
+                <IconButton
+                  icon={<IoMdPlay />}
+                  isRound="true"
+                  bgColor="rgba(0, 0, 0, 0.7)"
+                  color="white"
+                  size="lg"
+                  position="absolute"
+                  bottom="50px"
+                  right="10px"
+                  zIndex="10"
+                  _hover={{ bgColor: "rgba(0, 0, 0, 0.9)" }}
+                  onClick={() => {
+                    if (player.currentTime < episodesData[episodeData.episodeIndex].opInterval.endTime) {
+                      player.currentTime = episodesData[episodeData.episodeIndex].opInterval.endTime;
+                    } else {
+                      player.currentTime = episodesData[episodeData.episodeIndex].edInterval.endTime;
+                    }
+                  }}
+                />
               </Box>
           }
         </Box>
@@ -194,9 +250,12 @@ function VideoPage() {
             <Heading color={variants.mocha.text.hex} fontSize='30px' marginTop='8px'>
               E{episodeData.episodeIndex + 1} - {episodes[episodeData.episodeIndex].title}
             </Heading>
-            <Text color={variants.mocha.text.hex} bgColor={variants.mocha.surface0.hex} padding='12px' borderRadius='10px' marginTop='15px'>
-              {episodes[episodeData.episodeIndex].description}
-            </Text>
+            {
+              episodes[episodeData.episodeIndex].description &&
+              <Text color={variants.mocha.text.hex} bgColor={variants.mocha.surface0.hex} padding='12px' borderRadius='10px' marginTop='15px'>
+                {episodes[episodeData.episodeIndex].description}
+              </Text>
+            }
           </Box>
           <Box display='flex' flexDir='column'>
             {episodeData.episodeIndex < episodes.length - 1 &&
