@@ -30,7 +30,7 @@ function MediaBox({ media }) {
         navigate('/media-page', { state: { mediaId: media.id } });
       }}
     >
-      <Image src={media.coverImage.large} borderRadius='10px' objectFit='cover' height='320px' />
+      <Image src={media.coverImage} borderRadius='10px' objectFit='cover' height='320px' />
       <Box
         position='absolute'
         top='0'
@@ -46,7 +46,7 @@ function MediaBox({ media }) {
         display='flex'
         flexDir='column'
       >
-        <Heading fontSize='13px' color={variants.mocha.mauve.hex}>{media.title.english == null ? media.title.romaji : media.title.english}</Heading>
+        <Heading fontSize='13px' color={variants.mocha.mauve.hex}>{media.title}</Heading>
         <Text marginTop='8px' color={variants.mocha.text.hex} fontSize='13px'>
           <span style={{ color: variants.mocha.subtext0.hex }}>Score: </span>{media.meanScore == null ? 'N/A' : media.meanScore / 10} {media.meanScore == null ? '' : media.popularity < 1000 ? `(${media.popularity} ratings)` : `(${(media.popularity / 1000).toFixed(1)}k ratings)`}
         </Text>
@@ -73,7 +73,7 @@ function MediaBox({ media }) {
         overflow='auto'
         textAlign='center'
       >
-        {media.title.english == null ? media.title.romaji : media.title.english}
+        {media.title}
       </Heading>
     </Box>
   );

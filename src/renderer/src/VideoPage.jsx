@@ -8,7 +8,7 @@ import {
   IconButton
 } from '@chakra-ui/react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import Bar from './components/Bar'
+import Bar from './components/Bar';
 import { variants } from '@catppuccin/palette';
 import axios from 'axios';
 import Plyr from 'plyr';
@@ -20,21 +20,45 @@ import _ from 'lodash';
 function VideoPage() {
   const location = useLocation();
   const episodeData = location.state?.episodeData;
-  if (episodeData == null) {
-    return <p>Loading...</p>
+  const mediaData = location.state?.mediaObject;
+  if (!episodeData || !mediaData) {
+    return <p>Loading...</p>;
   }
 
   const navigate = useNavigate();
   const toast = useToast();
-  const mediaObject = JSON.parse(localStorage.getItem('media'));
-  const currentMedia = mediaObject[episodeData.mediaId];
-  const mediaData = currentMedia.mediaData;
-  const episodesData = currentMedia.episodesData;
-  const episodes = Object.values(episodesData);
+  const episodesData = mediaData.episodesData;
+  const episodes = mediaData.episodesData;
   const hasFetchedSourceRef = useRef(false);
   const [source, setSource] = useState(null);
   const videoRef = useRef(null);
-  const [player, setPlayer] = useState(null)
+  const [player, setPlayer] = useState(null);
+
+  // Function to update the anime (including episode time tracking)
+  const updateAnime = async (updatedEpisodesData) => {
+    try {
+      await axios.post('http://localhost:3001/update-anime', {
+        id: mediaData.id,
+        idMal: mediaData.idMal,
+        title: mediaData.title,
+        episodes: mediaData.episodes,
+        bannerImage: mediaData.bannerImage,
+        coverImage: mediaData.coverImage,
+        description: mediaData.description,
+        format: mediaData.format,
+        meanScore: mediaData.meanScore,
+        nextAiringEpisode: mediaData.nextAiringEpisode,
+        popularity: mediaData.popularity,
+        ranges: mediaData.ranges,
+        status: mediaData.status,
+        trailer: mediaData.trailer,
+        trending: mediaData.trending,
+        episodesData: updatedEpisodesData,
+      });
+    } catch (error) {
+      console.log('Error updating anime:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchStreamLinks = async () => {
@@ -46,16 +70,10 @@ function VideoPage() {
         isClosable: false,
       });
       try {
-        const response = await axios.request({
-          method: 'get',
-          url: `http://localhost:3000/meta/anilist/watch/${episodesData[episodeData.episodeIndex].id}`,
-        });
+        const response = await axios.get(`http://localhost:3000/meta/anilist/watch/${episodesData[episodeData.episodeIndex].id}`);
 
         try {
-          const skips = await axios.request({
-            method: 'get',
-            url: `https://api.aniskip.com/v2/skip-times/${mediaData.idMal}/${episodeData.episodeIndex + 1}?types=op&types=ed&episodeLength=0`,
-          });
+          const skips = await axios.get(`https://api.aniskip.com/v2/skip-times/${mediaData.idMal}/${episodeData.episodeIndex + 1}?types=op&types=ed&episodeLength=0`);
 
           if (skips.data.found) {
             const opInterval = skips.data.results[0].interval;
@@ -69,11 +87,14 @@ function VideoPage() {
 
         const defaultSource = response.data.sources.find(source => source.quality === 'default').url;
         episodes[episodeData.episodeIndex].source = defaultSource;
-        const newMediaObject = mediaObject;
-        newMediaObject[episodeData.mediaId].episodesData.episodes = episodes;
-        localStorage.setItem('media', JSON.stringify(newMediaObject));
+        console.log(episodes[episodeData.episodeIndex].source)
+
+
+        // Update episodes with new source and sync with the backend
+        await updateAnime(episodes);
+
         setSource(defaultSource);
-        toast.close('loading-video')
+        toast.close('loading-video');
       } catch (error) {
         console.log(error);
         toast({
@@ -83,7 +104,7 @@ function VideoPage() {
           duration: 5000,
           isClosable: true,
         });
-        toast.close('loading-video')
+        toast.close('loading-video');
       }
     };
 
@@ -91,50 +112,38 @@ function VideoPage() {
       const currentMediaSource = episodes[episodeData.episodeIndex].source;
       if (currentMediaSource) {
         console.log(`Using cached data for media ${episodeData.mediaId}`);
-
         setSource(currentMediaSource);
       } else {
         console.log(`Requesting data for media ${episodeData.mediaId}`);
         fetchStreamLinks();
       }
-      const cachedHistory = localStorage.getItem('history');
-      const historyObject = cachedHistory ? JSON.parse(cachedHistory) : {};
-      Object.entries(historyObject).forEach(([date, value]) => {
-        const storedEpisodeData = JSON.parse(value);
-        if (_.isEqual(storedEpisodeData, episodeData)) {
-          delete historyObject[date];
-        }
-      });
-      historyObject[new Date()] = JSON.stringify(episodeData);
-      localStorage.setItem('history', JSON.stringify(historyObject));
+      axios.post('http://localhost:3001/update-history', { idAndEpisode: `${episodeData.mediaId}-${episodeData.episodeIndex}`, date: new Date() })
+
       hasFetchedSourceRef.current = true;
     }
 
+    // Restore episode time when video loads
     if (player && player.playing !== true && episodesData[episodeData.episodeIndex].time) {
        player.once('canplay', event => {
          player.currentTime = episodesData[episodeData.episodeIndex].time;
        });
     }
 
-
-    window.addEventListener('unload', function(event) {
+    // Save episode time and duration before unloading or when navigating away
+    const handleUnload = async () => {
       if (player) {
-        const cachedMedia = JSON.parse(localStorage.getItem('media'));
-        cachedMedia[episodeData.mediaId].episodesData[episodeData.episodeIndex].time = player.currentTime
-        cachedMedia[episodeData.mediaId].episodesData[episodeData.episodeIndex].duration = player.duration
-        localStorage.setItem('media', JSON.stringify(cachedMedia))
+        const updatedEpisodes = [...episodesData];
+        updatedEpisodes[episodeData.episodeIndex].time = player.currentTime;
+        updatedEpisodes[episodeData.episodeIndex].duration = player.duration;
+        await updateAnime(updatedEpisodes); // Sync with the backend
       }
-    })
+    };
+
+    window.addEventListener('unload', handleUnload);
 
     return () => {
       if (player) {
-        const cachedMedia = JSON.parse(localStorage.getItem('media'));
-        cachedMedia[episodeData.mediaId].episodesData[episodeData.episodeIndex].time = player.currentTime
-        cachedMedia[episodeData.mediaId].episodesData[episodeData.episodeIndex].duration = player.duration
-        localStorage.setItem('media', JSON.stringify(cachedMedia))
-      }
-
-      if (player) {
+        handleUnload();
         player.destroy();
       }
     };
@@ -142,27 +151,18 @@ function VideoPage() {
 
   useLayoutEffect(() => {
     if (source && videoRef.current) {
-      // SOURCE: https://gist.github.com/io-st/9aabbac93ef7d32f1312c763495f10fb
       const defaultOptions = {};
 
       if (Hls.isSupported()) {
-        // For more Hls.js options, see https://github.com/dailymotion/hls.js
         const hls = new Hls();
         hls.loadSource(source);
 
-        // From the m3u8 playlist, hls parses the manifest and returns
-        // all available video qualities. This is important, in this approach,
-        // we will have one source on the Plyr player.
-        hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
-
-          // Transform available levels into an array of integers (height values).
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
           const availableQualities = hls.levels.map((l) => l.height);
 
-          // Add new qualities to option
           defaultOptions.quality = {
             default: availableQualities[0],
             options: availableQualities,
-            // this ensures Plyr to use Hls to update quality level
             forced: true,
             onChange: (e) => updateQuality(e),
           };
@@ -172,13 +172,11 @@ function VideoPage() {
           };
           defaultOptions.seekTime = 5;
 
-          // Initialize here
           setPlayer(new Plyr(videoRef.current, defaultOptions));
         });
         hls.attachMedia(videoRef.current);
         window.hls = hls;
       } else {
-        // default options with no quality update in case Hls is not supported
         setPlayer(new Plyr(videoRef.current, defaultOptions));
       }
     }
@@ -187,14 +185,11 @@ function VideoPage() {
   function updateQuality(newQuality) {
     window.hls.levels.forEach((level, levelIndex) => {
       if (level.height === newQuality) {
-        console.log("Found quality match with " + newQuality);
         window.hls.currentLevel = levelIndex;
       }
     });
   }
 
-  // TODO: finish skip button
-  // TODO: add scene searching with trace.moe
   return (
     <Box>
       <Bar />
@@ -241,11 +236,11 @@ function VideoPage() {
               fontSize='18px'
               onClick={() => {
                 toast.closeAll();
-                navigate('/media-page', { state: { mediaId: mediaData.id } })
+                navigate('/media-page', { state: { mediaId: mediaData.id } });
               }}
               _hover={{ cursor: 'pointer', color: variants.mocha.text.hex, transition: 'color 0.4s ease', textDecoration: 'underline' }}
             >
-              {mediaData.title.english ? mediaData.title.english : mediaData.title.romaji}
+              {mediaData.title}
             </Heading>
             <Heading color={variants.mocha.text.hex} fontSize='30px' marginTop='8px'>
               E{episodeData.episodeIndex + 1} - {episodes[episodeData.episodeIndex].title}
@@ -272,7 +267,7 @@ function VideoPage() {
                   flexDir='row'
                   onClick={() => {
                     toast.closeAll();
-                    navigate('/video-page', { state: { episodeData: { episodeIndex: episodeData.episodeIndex + 1, mediaId: episodeData.mediaId } } });
+                    navigate('/video-page', { state: { mediaObject: mediaData, episodeData: { episodeIndex: episodeData.episodeIndex + 1, mediaId: episodeData.mediaId } } });
                     window.location.reload();
                   }}
                   _before={{
@@ -294,7 +289,7 @@ function VideoPage() {
                   _hover={{
                     cursor: 'pointer',
                     '&::before': {
-                     opacity: 0,
+                      opacity: 0,
                     },
                   }}
                 >
@@ -328,8 +323,7 @@ function VideoPage() {
         </Box>
       </Box>
     </Box>
-  )
+  );
 }
 
 export default VideoPage;
-

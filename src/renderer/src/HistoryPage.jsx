@@ -5,20 +5,19 @@ import {
   IconButton,
   Text,
   Heading,
-  Image,
+  Image
 } from '@chakra-ui/react';
 import { DeleteIcon } from '@chakra-ui/icons';
 import Bar from './components/Bar';
 import { useNavigate } from 'react-router-dom';
 import { variants } from '@catppuccin/palette';
 import { IoMdPlay } from "react-icons/io";
+import axios from 'axios';
 
 function HistoryPage() {
   const toast = useToast();
-  const cachedHistory = localStorage.getItem('history');
-  const [historyObject, setHistoryObject] = useState(cachedHistory ? JSON.parse(cachedHistory) : {});
-  const cachedMedia = localStorage.getItem('media');
-  const mediaObject = cachedMedia ? JSON.parse(cachedMedia) : {}
+  const [historyData, setHistoryData] = useState([]); // History state from the backend
+  const [mediaData, setMediaData] = useState({}); // Anime data fetched from backend using get-anime-batch
   const navigate = useNavigate();
   const [historyDisplay, setHistoryDisplay] = useState(null);
   const [boxWidth, setBoxWidth] = useState(null);
@@ -34,46 +33,73 @@ function HistoryPage() {
       } else {
         setBoxWidth('300px');
       }
-    }
+    };
 
     handleResize();
     window.addEventListener('resize', handleResize);
 
     return () => {
       window.removeEventListener('resize', handleResize);
-    }
+    };
   }, []);
 
   useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await axios.get('http://localhost:3001/get-history');
+        const history = response.data;
+
+        setHistoryData(history);
+
+        // Extract media IDs from history
+        const mediaIds = history.map(item => item.idAndEpisode.split('-')[0]);
+
+        if (mediaIds.length > 0) {
+          // Fetch anime data in a batch using the get-anime-batch endpoint
+          const mediaResponse = await axios.post('http://localhost:3001/get-anime-batch', { ids: mediaIds });
+
+          // Set the media data
+          setMediaData(mediaResponse.data);
+        }
+      } catch (error) {
+        toast({
+          title: 'Error fetching history',
+          description: "Please check your network connectivity",
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    };
+
+    fetchHistory(); // Call the history fetch function
+  }, [toast]);
+
+  useEffect(() => {
+    if (historyData.length === 0 || Object.keys(mediaData).length === 0) return;
+
     setHistoryDisplay(
-      Object.entries(historyObject)
-        .sort(([a, ], [b, ]) => new Date(b) - new Date(a))
+      historyData
+        .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date
         .map((element, index) => {
-          const date = element[0];
-          const episodeData = JSON.parse(element[1]);
-          const media = mediaObject[episodeData.mediaId];
-          const episode = media.episodesData[episodeData.episodeIndex];
-          const formattedDate = new Date(date);
+          const [mediaId, episodeIndex] = element.idAndEpisode.split('-');
+          const media = mediaData[mediaId]; // Fetch media data using mediaId
+          if (!media) return null;
+
+          const episode = media.episodesData[episodeIndex]; // Fetch episode data
+          const formattedDate = new Date(element.date); // Format the date
           let month = formattedDate.getMonth() + 1;
           let day = formattedDate.getDate();
           let year = formattedDate.getFullYear();
-          let hours = formattedDate.getHours();
-          let minutes = formattedDate.getMinutes();
           month = month < 10 ? `0${month}` : month;
           day = day < 10 ? `0${day}` : day;
-          hours = hours < 10 ? `0${hours}` : hours;
-          minutes = minutes < 10 ? `0${minutes}` : minutes;
           const formattedDateStr = `${month}/${day}/${year}`;
-          const progress = episode.duration > 0 ? (episode.time / episode.duration) * 100 : 0;
 
           return (
             <Box
               key={index}
               textAlign="left"
-              onClick={() => {
-                toast.closeAll();
-                navigate('/video-page', { state: { episodeData: episodeData }});
-              }}
+              onClick={() => navigate('/video-page', { state: { episodeData: { mediaId, episodeIndex } } })}
               width='300px'
               position='relative'
               _before={{
@@ -94,12 +120,18 @@ function HistoryPage() {
               _hover={{
                 cursor: 'pointer',
                 '&::before': {
-                 opacity: 0,
+                  opacity: 0,
                 },
               }}
             >
               <Box borderRadius='10px' position='relative'>
-                <Image src={episode.image} width='100%' height='169px' objectFit='cover' borderRadius='10px' />
+                <Image
+                  src={episode.image} // Use the episode image
+                  width='100%'
+                  height='169px'
+                  objectFit='cover'
+                  borderRadius='10px'
+                />
                 <IconButton
                   icon={<IoMdPlay />}
                   isRound='true'
@@ -113,27 +145,6 @@ function HistoryPage() {
                   transform='translate(-50%, -50%)'
                   _hover={{ bgColor: 'rgba(0, 0, 0, 0.8)' }}
                 />
-                {progress > 0 &&
-                  <Box
-                    position='absolute'
-                    bottom='0'
-                    left='0'
-                    height='5px'
-                    width='100%'
-                    bg='gray.600'
-                    borderRadius='0 0 10px 10px'
-                    overflow='hidden'
-                    zIndex='2'
-                    opacity='0.8'
-                  >
-                    <Box
-                      height='100%'
-                      width={`${progress}%`}
-                      bg='rgba(149,2,61,0.7)'
-                      transition='width 0.3s ease'
-                    />
-                  </Box>
-                }
               </Box>
               <Text
                 marginX='5px'
@@ -142,13 +153,12 @@ function HistoryPage() {
                 color={variants.mocha.mauve.hex}
                 onClick={(e) => {
                   e.stopPropagation();
-                  toast.closeAll();
-                  navigate('/media-page', { state: { mediaId: episodeData.mediaId } });
+                  navigate('/media-page', { state: { mediaId } });
                 }}
                 _hover={{ cursor: 'pointer', color: variants.mocha.text.hex, transition: 'color 0.4s ease', textDecoration: 'underline' }}
                 zIndex='2'
               >
-                {media.mediaData.title.english ? media.mediaData.title.english : media.mediaData.title.romaji}
+                {media.title}
               </Text>
               <Heading
                 marginX='5px'
@@ -156,7 +166,7 @@ function HistoryPage() {
                 fontSize='16px'
                 color={variants.mocha.subtext1.hex}
               >
-                E{episodeData.episodeIndex + 1} - {episode.title}
+                E{episodeIndex} {episode.title && '-'} {episode.title} {/* Fetch episode title */}
               </Heading>
               <Box display='flex' flexDir='row' justifyContent='space-between'>
                 <Text
@@ -165,29 +175,60 @@ function HistoryPage() {
                   fontSize='14px'
                   color={variants.mocha.subtext0.hex}
                 >
-                  {formattedDateStr}
+                  {formattedDateStr} {/* Display the formatted date */}
                 </Text>
                 <DeleteIcon
                   margin='5px'
                   boxSize='18px'
                   color={variants.mocha.subtext0.hex}
                   _hover={{ color: variants.mocha.text.hex }}
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
-                    delete historyObject[date];
-                    localStorage.setItem('history', JSON.stringify(historyObject));
-                    setHistoryObject(prevHistory => {
-                      return {...prevHistory};
-                    });
+                    try {
+                      await axios.delete(`http://localhost:3001/delete-history/${element.idAndEpisode}`);
+                      setHistoryData(prevHistory => prevHistory.filter(h => h.idAndEpisode !== element.idAndEpisode));
+                    } catch (error) {
+                      toast({
+                        title: 'Error deleting history entry',
+                        description: "Please check your network connectivity",
+                        status: 'error',
+                        duration: 5000,
+                        isClosable: true,
+                      });
+                    }
                   }}
                 />
               </Box>
             </Box>
-          )
+          );
         })
     );
-  }, [historyObject]);
+  }, [historyData, mediaData, navigate, toast]);
 
+  const handleClearAll = async () => {
+    try {
+      await axios.delete('http://localhost:3001/delete-history-all');
+      setHistoryData([]); // Clear history state
+      setHistoryDisplay(null);
+      toast({
+        title: 'History cleared',
+        description: "All history entries have been cleared",
+        status: 'success',
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error clearing history',
+        description: "Please check your network connectivity",
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    }
+  };
+
+  // TODO: make confirmation dialog before clearing all
   return (
     <Box>
       <Bar />
@@ -205,10 +246,7 @@ function HistoryPage() {
             <Text
               color={variants.mocha.subtext0.hex}
               _hover={{ cursor: 'pointer' }}
-              onClick={() => {
-                setHistoryObject({});
-                localStorage.removeItem('history');
-              }}
+              onClick={handleClearAll}
             >
               Clear History
             </Text>
@@ -219,8 +257,7 @@ function HistoryPage() {
         </Box>
       </Box>
     </Box>
-  )
+  );
 }
 
 export default HistoryPage;
-

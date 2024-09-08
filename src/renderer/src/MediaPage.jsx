@@ -18,14 +18,14 @@ function MediaPage() {
   const location = useLocation();
   const mediaId = location.state?.mediaId;
 
-  if (mediaId == null) {
-    return <p>Loading...</p>
+  if (!mediaId) {
+    return <p>Loading...</p>;
   }
 
   const toast = useToast();
   const navigate = useNavigate();
-  const [mediaData, setMediaData] = useState();
-  const [episodesData, setEpisodesData] = useState([]);
+  const [mediaData, setMediaData] = useState(null);
+  const [episodesData, setEpisodesData] = useState(null); // Changed to `null`
   const hasFetchedMediaDataRef = useRef(false);
   const [boxWidth, setBoxWidth] = useState(null);
   const [selectedRange, setSelectedRange] = useState(null);
@@ -44,7 +44,7 @@ function MediaPage() {
     }
 
     return ranges;
-  }
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -57,7 +57,7 @@ function MediaPage() {
       } else {
         setBoxWidth('300px');
       }
-    }
+    };
 
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -109,48 +109,40 @@ function MediaPage() {
           method: 'post',
           url: 'https://graphql.anilist.co',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          data: data
+          data: data,
         });
 
         const ranges = getRanges(response.data.data.Media.episodes);
-        const newMediaData = { ...response.data.data.Media, ranges: ranges };
+        const newMediaData = { ...response.data.data.Media, ranges: JSON.stringify(ranges) };
+        newMediaData.coverImage = newMediaData.coverImage.large;
+        newMediaData.title = newMediaData.title.english || newMediaData.title.romaji;
+        newMediaData.trailer = newMediaData.trailer ? newMediaData.trailer.id : null;
         newMediaData.nextAiringEpisode = new Date(Date.now() + (newMediaData.nextAiringEpisode?.timeUntilAiring * 1000));
+
         setMediaData(newMediaData);
 
+        // Fetch episodesData
         try {
           const response1 = await axios.request({
             method: 'get',
             url: `http://localhost:3000/meta/anilist/episodes/${mediaId}`,
           });
+
           setEpisodesData(response1.data);
 
-          // in case if anilist returns number of episodes as null
+          // Update ranges and episode count if necessary
           if (!ranges[0]) {
             newMediaData.episodes = response1.data.length;
-            newMediaData.ranges = getRanges(response1.data.length);
+            newMediaData.ranges = JSON.stringify(getRanges(response1.data.length));
             setMediaData(newMediaData);
           }
 
-          const cachedMediaObject = localStorage.getItem('media');
-          const newMediaObject = cachedMediaObject
-            ? {
-                ...JSON.parse(cachedMediaObject),
-                [response.data.data.Media.id]: {
-                  mediaData: newMediaData,
-                  episodesData: response1.data,
-                }
-              }
-            : {
-                [response.data.data.Media.id]: {
-                  mediaData: newMediaData,
-                  episodesData: response1.data,
-                }
-              };
+          // Sync with backend
+          await axios.post('http://localhost:3001/update-anime', { ...newMediaData, episodesData: response1.data });
 
-          localStorage.setItem('media', JSON.stringify(newMediaObject));
-          setSelectedRange(newMediaData.ranges[0]);
+          setSelectedRange(JSON.parse(newMediaData.ranges)[0]);
           toast.close('loading-episodes');
         } catch (error) {
           console.log(error);
@@ -165,7 +157,7 @@ function MediaPage() {
       } catch (error) {
         toast({
           title: 'Error fetching anime',
-          description: "Please check your network connectivity",
+          description: 'Please check your network connectivity',
           status: 'error',
           duration: 5000,
           isClosable: true,
@@ -174,34 +166,47 @@ function MediaPage() {
       }
     };
 
-    // TODO: show tags/genres
-    // TODO: show when next episode airs
-    if (!hasFetchedMediaDataRef.current) {
-      const cachedMedia = localStorage.getItem('media');
-      const mediaObject = cachedMedia ? JSON.parse(cachedMedia) : {};
-
-      if (mediaObject[mediaId] &&
-        (!mediaObject[mediaId].nextAiringEpisode ||
-        Date.now() < new Date(mediaObject[mediaId].nextAiringEpisode))) {
+    const fetchCache = async () => {
+      try {
+        const response = await axios.get(`http://localhost:3001/get-anime/${mediaId}`);
         console.log(`Using cached data for media ${mediaId}`);
-        setMediaData(mediaObject[mediaId].mediaData);
-        setEpisodesData(mediaObject[mediaId].episodesData);
-        setSelectedRange(mediaObject[mediaId].mediaData.ranges[0]);
-      } else {
-        console.log(`Requesting data for media`);
+        const cachedMedia = response.data;
+
+        if (cachedMedia.nextAiringEpisode && Date.now() < new Date(cachedMedia.nextAiringEpisode)) {
+          setMediaData(cachedMedia);
+          setEpisodesData(cachedMedia.episodesData);
+          setSelectedRange(JSON.parse(cachedMedia.ranges)[0]);
+        } else {
+          const response1 = await axios.request({
+            method: 'get',
+            url: `http://localhost:3000/meta/anilist/episodes/${mediaId}`,
+          });
+          cachedMedia.episodesData[-1] = response1.data[-1];
+          await axios.post('http://localhost:3001/update-anime', { id: mediaId, episodesData: cachedMedia.episodesData });
+          setMediaData(cachedMedia);
+          setEpisodesData(response1.data);
+          setSelectedRange(JSON.parse(cachedMedia.range)[0]);
+        }
+      } catch (error) {
+        console.log('Requesting data for media');
         fetchMediaData();
       }
+    };
+
+    if (!hasFetchedMediaDataRef.current) {
+      fetchCache();
       hasFetchedMediaDataRef.current = true;
     }
 
     return () => {
       window.removeEventListener('resize', handleResize);
-    }
+    };
   }, []);
 
+  // Ensure that episodesData is fetched before rendering episodes
   useEffect(() => {
     const fetchEpisodes = async () => {
-      if (selectedRange) {
+      if (selectedRange && episodesData) {
         const rangeStart = parseInt(selectedRange.match(/\d+/)[0], 10) - 1;
         const rangeEnd = rangeStart + 50;
 
@@ -226,7 +231,9 @@ function MediaPage() {
                   textAlign="left"
                   onClick={() => {
                     toast.closeAll();
-                    navigate('/video-page', { state: { episodeData: { episodeIndex: index, mediaId: mediaData.id } } });
+                    navigate('/video-page', {
+                      state: { mediaObject: { ...mediaData, episodesData }, episodeData: { episodeIndex, mediaId: mediaData.id } },
+                    });
                   }}
                   width='300px'
                   position='relative'
@@ -273,7 +280,7 @@ function MediaPage() {
                       transform='translate(-50%, -50%)'
                       _hover={{ bgColor: 'rgba(0, 0, 0, 0.8)' }}
                     />
-                    {progress > 0 &&
+                    {progress > 0 && (
                       <Box
                         position='absolute'
                         bottom='0'
@@ -293,16 +300,18 @@ function MediaPage() {
                           transition='width 0.3s ease'
                         />
                       </Box>
-                    }
-                    </Box>
-                  <Text margin='5px' color={variants.mocha.subtext1.hex}>E{index + rangeStart + 1} {episode.title && '-'} {episode.title}</Text>
+                    )}
+                  </Box>
+                  <Text margin='5px' color={variants.mocha.subtext1.hex}>
+                    E{index + rangeStart + 1} {episode.title && '-'} {episode.title}
+                  </Text>
                 </Box>
               );
             })}
           </Box>
         );
       }
-    }
+    };
 
     fetchEpisodes();
   }, [selectedRange, mediaData, episodesData]);
@@ -311,16 +320,16 @@ function MediaPage() {
     if (mediaData) {
       setEpisodeRanges(
         <Box display='flex' justifyContent='space-evenly' flexWrap='wrap' marginTop='12px'>
-          {mediaData.ranges.map((range, ep) => (
+          {JSON.parse(mediaData.ranges).map((range, ep) => (
             <Box
               key={ep}
               padding='6px'
               borderRadius='5px'
               borderWidth='1px'
               display='inline-block'
-              style={{ cursor: "pointer" }}
+              style={{ cursor: 'pointer' }}
               _hover={{ bgColor: range === selectedRange ? 'gray.500' : 'gray.100' }}
-              bgColor={range == selectedRange ? 'gray.500' : 'white'}
+              bgColor={range === selectedRange ? 'gray.500' : 'white'}
               onClick={() => setSelectedRange(range)}
             >
               {range}
@@ -334,36 +343,33 @@ function MediaPage() {
   return (
     <Box>
       <Bar />
-      {
-        mediaData != null &&
-          <Box paddingY='60px' display='flex' flexDir='column' bgColor={variants.mocha.base.hex}>
-            <Image src={mediaData.bannerImage} height='320px' objectFit='cover' />
-            <Box width={boxWidth} alignSelf='center'>
-              <Box display='flex' flexDirection='row' width='100%' height='193px' alignSelf='center'>
-                <Image src={mediaData.coverImage.large} width='230px' height='323px' marginTop='-130px' />
-                <Box display='flex' flexDirection='column' margin='15px'>
-                  <Heading color={variants.mocha.text.hex}>{mediaData.title.english ? mediaData.title.english : mediaData.title.romaji}</Heading>
-                  <Text
-                    color={variants.mocha.subtext0.hex}
-                    dangerouslySetInnerHTML={{ __html: mediaData.description }}
-                    overflow='auto'
-                    maxHeight='130px'
-                  />
-                </Box>
+      {mediaData != null && (
+        <Box paddingY='60px' display='flex' flexDir='column' bgColor={variants.mocha.base.hex}>
+          <Image src={mediaData.bannerImage} height='320px' objectFit='cover' />
+          <Box width={boxWidth} alignSelf='center'>
+            <Box display='flex' flexDirection='row' width='100%' height='193px' alignSelf='center'>
+              <Image src={mediaData.coverImage} width='230px' height='323px' marginTop='-130px' />
+              <Box display='flex' flexDirection='column' margin='15px'>
+                <Heading color={variants.mocha.text.hex}>{mediaData.title}</Heading>
+                <Text
+                  color={variants.mocha.subtext0.hex}
+                  dangerouslySetInnerHTML={{ __html: mediaData.description }}
+                  overflow='auto'
+                  maxHeight='130px'
+                />
               </Box>
-              {
-                episodesData &&
-                  <Box>
-                    {episodeRanges}
-                    {episodesDisplay}
-                  </Box>
-              }
             </Box>
+            {episodesData && (
+              <Box>
+                {episodeRanges}
+                {episodesDisplay}
+              </Box>
+            )}
           </Box>
-      }
+        </Box>
+      )}
     </Box>
-  )
+  );
 }
 
 export default MediaPage;
-

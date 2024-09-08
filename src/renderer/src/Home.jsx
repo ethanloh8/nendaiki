@@ -11,42 +11,70 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon
 } from '@chakra-ui/icons';
-import HomePanel from './components/HomePanel';
 import HomePanel1 from './components/HomePanel1';
-import { variants, labels } from '@catppuccin/palette';
+import { variants } from '@catppuccin/palette';
 import axios from 'axios';
 import Bar from './components/Bar';
 import MediaBox from './components/MediaBox';
 
 function Home() {
-  const cachedHistory = localStorage.getItem('history');
-  const historyObject = cachedHistory ? JSON.parse(cachedHistory) : {};
-  const cachedMedia = localStorage.getItem('media');
-  const mediaObject = cachedMedia ? JSON.parse(cachedMedia) : {};
   const [featuredData, setFeaturedData] = useState(null);
+  const [historyData, setHistoryData] = useState([]); // History state from the backend
+  const [mediaData, setMediaData] = useState({}); // Anime data fetched from backend using get-anime-batch
   const hasFetchedFeaturedDataRef = useRef(false);
   const trendingBoxRef = useRef(null);
   const historyBoxRef = useRef(null);
   const toast = useToast();
 
+  // Fetch the history from the backend and media data for each anime in the history
   useEffect(() => {
-    console.log(import.meta.url);
+    const fetchHistory = async () => {
+      try {
+        const response = await axios.get('http://localhost:3001/get-history');
+        const history = response.data;
+
+        setHistoryData(history);
+
+        // Extract media IDs from history
+        const mediaIds = history.map(item => item.idAndEpisode.split('-')[0]);
+
+        if (mediaIds.length > 0) {
+          // Fetch anime data in a batch using the get-anime-batch endpoint
+          const mediaResponse = await axios.post('http://localhost:3001/get-anime-batch', { ids: mediaIds });
+
+          // Set the media data
+          setMediaData(mediaResponse.data);
+        }
+      } catch (error) {
+        toast({
+          title: 'Error fetching history',
+          description: "Please check your network connectivity",
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
+    };
+
+    fetchHistory(); // Call the history fetch function
+  }, []);
+
+  useEffect(() => {
     const fetchFeaturedData = async () => {
       try {
         const currentDate = new Date();
         const currentMonth = currentDate.getMonth();
         let currentSeason;
         if (currentMonth >= 3 && currentMonth <= 5) {
-         currentSeason = 'SPRING';
+          currentSeason = 'SPRING';
         } else if (currentMonth >= 6 && currentMonth <= 8) {
-         currentSeason = 'SUMMER';
+          currentSeason = 'SUMMER';
         } else if (currentMonth >= 9 && currentMonth <= 11) {
-         currentSeason = 'FALL';
+          currentSeason = 'FALL';
         } else {
-         currentSeason = 'WINTER';
+          currentSeason = 'WINTER';
         }
         const currentYear = currentDate.getFullYear();
-        console.log(currentSeason)
 
         const data = JSON.stringify({
           query: `
@@ -86,7 +114,6 @@ function Home() {
           },
           data: data
         });
-
         setFeaturedData(response.data);
         sessionStorage.setItem('featuredData', JSON.stringify(response.data));
       } catch (error) {
@@ -101,12 +128,11 @@ function Home() {
     };
 
     if (!hasFetchedFeaturedDataRef.current) {
+      fetchFeaturedData();
       const cachedFeaturedData = sessionStorage.getItem('featuredData');
       if (cachedFeaturedData) {
-        console.log('Using cached Featured Data');
         setFeaturedData(JSON.parse(cachedFeaturedData));
       } else {
-        console.log('Requesting Featured Data');
         fetchFeaturedData();
       }
       hasFetchedFeaturedDataRef.current = true;
@@ -116,24 +142,22 @@ function Home() {
   const handleScrollLeft = (ref) => {
     const maxScrollLength = ref.current.scrollWidth - ref.current.clientWidth;
     const currentPosition = ref.current.scrollLeft;
-    ref.current.scrollTo({ left: currentPosition - (maxScrollLength / 2), behavior: 'smooth' })
-  }
+    ref.current.scrollTo({ left: currentPosition - (maxScrollLength / 2), behavior: 'smooth' });
+  };
 
   const handleScrollRight = (ref) => {
     const maxScrollLength = ref.current.scrollWidth - ref.current.clientWidth;
     const currentPosition = ref.current.scrollLeft;
-    ref.current.scrollTo({ left: currentPosition + (maxScrollLength / 2), behavior: 'smooth' })
-  }
+    ref.current.scrollTo({ left: currentPosition + (maxScrollLength / 2), behavior: 'smooth' });
+  };
 
-  // TODO: cache trending anime data for a week
-  // TODO: fix arrows for side scrolling
   return (
     <Box>
       <Bar />
       <Box display='flex' paddingY='60px' flexDirection='column' bgColor={variants.mocha.base.hex}>
-        <HomePanel1 popularMedia={featuredData?.data.Page.media.slice(0, 11).toSorted(() => Math.random() - 0.5)} />
+        <HomePanel1 popularMedia={featuredData?.data.Page.media.slice(0, 11).sort(() => Math.random() - 0.5)} />
         <Box paddingX='70px' paddingY='40px' display='flex' flexDir='column' rowGap='30px'>
-          {Object.keys(historyObject).length > 0 &&
+          {historyData.length > 0 && (
             <Box>
               <Heading color={variants.mocha.text.hex}>Last Watched</Heading>
               <Box
@@ -159,16 +183,27 @@ function Home() {
                   onMouseDown={() => handleScrollLeft(historyBoxRef)}
                 />
                 {
-                  Object.entries(historyObject)
-                    .sort(([a, ], [b, ]) => new Date(b) - new Date(a))
-                    .reduce((acc, [key, value]) => {
-                      const mediaId = JSON.parse(value).mediaId;
-                      if (!acc.some(mediaBox => mediaBox.props.media.id === mediaId)) {
-                        // if problem occurs here, delete history from cache
-                        acc.push(<MediaBox key={key} media={mediaObject[mediaId].mediaData} />);
+                  historyData
+                    .sort((a, b) => new Date(b.date) - new Date(a.date))
+                    .reduce((acc, historyItem) => {
+                      const [mediaId, episodeIndex] = historyItem.idAndEpisode.split('-');
+                      const media = mediaData[mediaId]; // Get media data
+
+                      // Check if media already exists in the accumulator (based on media.title)
+                      if (media && !acc.some(item => item.title === media.title)) {
+                        acc.push({ ...historyItem, title: media.title }); // Push only unique titles
                       }
+
                       return acc;
-                    }, [])
+                    }, []) // Initialize an empty array for accumulation
+                    .map((historyItem) => {
+                      const [mediaId, episodeIndex] = historyItem.idAndEpisode.split('-');
+                      const media = mediaData[mediaId]; // Use the fetched media data
+                      if (media) {
+                        return <MediaBox key={mediaId} media={media} episodeIndex={episodeIndex} />;
+                      }
+                      return null;
+                    })
                 }
                 <ChevronRightIcon
                   position='sticky'
@@ -183,7 +218,7 @@ function Home() {
                 />
               </Box>
             </Box>
-          }
+          )}
           <Box>
             <Heading color={variants.mocha.text.hex}>Trending Anime</Heading>
             <Box
@@ -210,11 +245,14 @@ function Home() {
               />
               {
                 featuredData?.data.Page.media
-                  .toSorted((a, b) => b.trending - a.trending)
+                  .sort((a, b) => b.trending - a.trending)
                   .slice(0, 10)
-                  .map((media) => (
-                    <MediaBox key={media.id} media={media} />
-                  ))
+                  .map((media) => {
+                    const newMedia = { ...media, title: media.title.english || media.title.romaji, coverImage: media.coverImage.large }
+                    return (
+                      <MediaBox key={media.id} media={newMedia} />
+                    )
+                  })
               }
               <ChevronRightIcon
                 position='sticky'
@@ -236,4 +274,3 @@ function Home() {
 }
 
 export default Home;
-

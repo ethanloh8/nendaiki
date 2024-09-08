@@ -5,6 +5,9 @@ import icon from '../../resources/icon.png?asset'
 import { exec, spawn, execFile } from 'child_process';
 import '../../api.consumet.org/src/main.ts';
 import '../auth-server/index.js';
+import '../backend/index.js'
+
+let backendProcess;
 
 function createWindow() {
   // Create the browser window.
@@ -42,6 +45,10 @@ function createWindow() {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Start backend server
+  const backendProcessPath = join(__dirname, '../backend/index.js');
+  backendProcess = exec(`node ${backendProcessPath}`);
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -59,6 +66,12 @@ app.whenReady().then(() => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+
+  app.on('before-quit', () => {
+    if (backendProcess) {
+      backendProcess.kill();
+    }
+  });
 
   ipcMain.on('oauth-code', (code) => {
     // Handle the OAuth code here, you can pass it to the renderer process if needed
