@@ -56,7 +56,17 @@ function Home() {
       }
     };
 
+    const updateEpisodeTimestamp = async () => {
+      const savedTimestamp = localStorage.getItem('saved-timestamp');
+      if (savedTimestamp) {
+        const mapping = Object.entries(JSON.parse(savedTimestamp))[0];
+        await axios.post('http://localhost:3001/update-anime', { id: mapping[0], episodesData: mapping[1] });
+        localStorage.removeItem('saved-timestamp');
+      }
+    }
+
     fetchHistory(); // Call the history fetch function
+    updateEpisodeTimestamp();
   }, []);
 
   useEffect(() => {

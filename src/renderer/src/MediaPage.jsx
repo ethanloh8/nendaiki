@@ -169,23 +169,55 @@ function MediaPage() {
     const fetchCache = async () => {
       try {
         const response = await axios.get(`http://localhost:3001/get-anime/${mediaId}`);
-        console.log(`Using cached data for media ${mediaId}`);
         const cachedMedia = response.data;
 
-        if (cachedMedia.nextAiringEpisode && Date.now() < new Date(cachedMedia.nextAiringEpisode)) {
+        if (!cachedMedia.nextAiringEpisode || Date.now() < new Date(cachedMedia.nextAiringEpisode)) {
+          console.log(`Using cached data for media ${mediaId}`);
           setMediaData(cachedMedia);
           setEpisodesData(cachedMedia.episodesData);
           setSelectedRange(JSON.parse(cachedMedia.ranges)[0]);
         } else {
-          const response1 = await axios.request({
-            method: 'get',
-            url: `http://localhost:3000/meta/anilist/episodes/${mediaId}`,
+          console.log(`Updating cached data for media ${mediaId}`);
+          const response1 = await axios.get(`http://localhost:3000/meta/anilist/episodes/${mediaId}`);
+
+          // If new episodes are available, add them to the cached episodes
+          const newEpisodes = response1.data.slice(cachedMedia.episodesData.length); // Get only new episodes
+          cachedMedia.episodesData = [...cachedMedia.episodesData, ...newEpisodes]; // Append new episodes
+
+          // Update the episode count and ranges based on the new data
+          cachedMedia.episodes = cachedMedia.episodesData.length;
+          cachedMedia.ranges = JSON.stringify(getRanges(cachedMedia.episodesData.length));
+
+          // Fetch the nextAiringEpisode from AniList using axios.post
+          const nextAiringEpisodeResponse = await axios.post('https://graphql.anilist.co', {
+            query: `
+              {
+                Media(id: ${mediaId}) {
+                  nextAiringEpisode {
+                    timeUntilAiring
+                  }
+                }
+              }
+            `
           });
-          cachedMedia.episodesData[-1] = response1.data[-1];
-          await axios.post('http://localhost:3001/update-anime', { id: mediaId, episodesData: cachedMedia.episodesData });
+
+          const timeUntilAiring = nextAiringEpisodeResponse.data.data.Media.nextAiringEpisode?.timeUntilAiring;
+          const newNextAiringEpisode = timeUntilAiring
+            ? new Date(Date.now() + (timeUntilAiring * 1000))
+            : null;
+
+          cachedMedia.nextAiringEpisode = newNextAiringEpisode;
+
+          // Sync the updated cached media with the backend, including nextAiringEpisode
+          await axios.post('http://localhost:3001/update-anime', {
+            id: mediaId,
+            episodesData: cachedMedia.episodesData,
+            nextAiringEpisode: cachedMedia.nextAiringEpisode, // Include nextAiringEpisode
+          });
+
           setMediaData(cachedMedia);
-          setEpisodesData(response1.data);
-          setSelectedRange(JSON.parse(cachedMedia.range)[0]);
+          setEpisodesData(cachedMedia.episodesData);
+          setSelectedRange(JSON.parse(cachedMedia.ranges)[0]);
         }
       } catch (error) {
         console.log('Requesting data for media');
@@ -303,7 +335,7 @@ function MediaPage() {
                     )}
                   </Box>
                   <Text margin='5px' color={variants.mocha.subtext1.hex}>
-                    E{index + rangeStart + 1} {episode.title && '-'} {episode.title}
+                    {episode.title ? `E${index + rangeStart + 1} - ${episode.title}` : `Episode ${index + rangeStart + 1}`}
                   </Text>
                 </Box>
               );

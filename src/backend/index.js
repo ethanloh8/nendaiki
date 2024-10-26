@@ -58,26 +58,57 @@ app.post('/update-anime', express.json(), (req, res) => {
     trailer, trending, episodesData
   } = req.body;
 
-  // SQL query to insert or replace the record
-  const sql = `
-    INSERT OR REPLACE INTO anime (
-      id, idMal, title, episodes, bannerImage, coverImage, description,
-      format, meanScore, nextAiringEpisode, popularity, ranges, status,
-      trailer, trending, episodesData
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
+  // First, fetch the existing record if it exists
+  const selectSql = `SELECT * FROM anime WHERE id = ?`;
 
-  // Execute the SQL query
-  db.run(sql, [
-    id, idMal, title, episodes, bannerImage, coverImage, description,
-    format, meanScore, nextAiringEpisode, popularity, ranges, status,
-    trailer, trending, JSON.stringify(episodesData) // Ensure episodesData is a JSON string
-  ], function(err) {
+  db.get(selectSql, [id], (err, row) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
 
-    res.status(200).json({ success: `Anime data for ${id} updated successfully.` });
+    // If the record exists, merge the old values with the new ones
+    const updatedRecord = {
+      id: id,
+      idMal: idMal ?? row?.idMal,
+      title: title ?? row?.title,
+      episodes: episodes ?? row?.episodes,
+      bannerImage: bannerImage ?? row?.bannerImage,
+      coverImage: coverImage ?? row?.coverImage,
+      description: description ?? row?.description,
+      format: format ?? row?.format,
+      meanScore: meanScore ?? row?.meanScore,
+      nextAiringEpisode: nextAiringEpisode ?? row?.nextAiringEpisode,
+      popularity: popularity ?? row?.popularity,
+      ranges: ranges ?? row?.ranges,
+      status: status ?? row?.status,
+      trailer: trailer ?? row?.trailer,
+      trending: trending ?? row?.trending,
+      episodesData: episodesData ? JSON.stringify(episodesData) : row?.episodesData
+    };
+
+    // SQL query to insert or replace the record
+    const sql = `
+      INSERT OR REPLACE INTO anime (
+        id, idMal, title, episodes, bannerImage, coverImage, description,
+        format, meanScore, nextAiringEpisode, popularity, ranges, status,
+        trailer, trending, episodesData
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    // Execute the SQL query
+    db.run(sql, [
+      updatedRecord.id, updatedRecord.idMal, updatedRecord.title, updatedRecord.episodes,
+      updatedRecord.bannerImage, updatedRecord.coverImage, updatedRecord.description,
+      updatedRecord.format, updatedRecord.meanScore, updatedRecord.nextAiringEpisode,
+      updatedRecord.popularity, updatedRecord.ranges, updatedRecord.status,
+      updatedRecord.trailer, updatedRecord.trending, updatedRecord.episodesData
+    ], function(err) {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+
+      res.status(200).json({ success: `Anime data for ${id} updated successfully.` });
+    });
   });
 });
 
@@ -89,6 +120,7 @@ app.post('/update-anime-batch', async (req, res) => {
     return res.status(400).json({ error: 'Input must be an array of anime objects.' });
   }
 
+  const selectSql = `SELECT * FROM anime WHERE id = ?`;
   const sql = `
     INSERT OR REPLACE INTO anime (
       id, idMal, title, episodes, bannerImage, coverImage, description,
@@ -98,25 +130,51 @@ app.post('/update-anime-batch', async (req, res) => {
   `;
 
   try {
-    // Create an array of promises for each anime update
-    const updatePromises = animeArray.map(anime => {
-      return new Promise((resolve, reject) => {
-        db.run(sql, [
-          anime.id, anime.idMal, anime.title, anime.episodes, anime.bannerImage,
-          anime.coverImage, anime.description, anime.format, anime.meanScore,
-          anime.nextAiringEpisode, anime.popularity, anime.ranges, anime.status,
-          anime.trailer, anime.trending, JSON.stringify(anime.episodesData)
-        ], function (err) {
+    // Process each anime update one by one
+    for (const anime of animeArray) {
+      await new Promise((resolve, reject) => {
+        db.get(selectSql, [anime.id], (err, row) => {
           if (err) {
-            return reject(err); // Reject the promise if there's an error
+            return reject(err); // Stop the process if there's an error
           }
-          resolve(); // Resolve the promise when done
+
+          // Merge the new values with the old ones
+          const updatedRecord = {
+            id: anime.id,
+            idMal: anime.idMal ?? row?.idMal,
+            title: anime.title ?? row?.title,
+            episodes: anime.episodes ?? row?.episodes,
+            bannerImage: anime.bannerImage ?? row?.bannerImage,
+            coverImage: anime.coverImage ?? row?.coverImage,
+            description: anime.description ?? row?.description,
+            format: anime.format ?? row?.format,
+            meanScore: anime.meanScore ?? row?.meanScore,
+            nextAiringEpisode: anime.nextAiringEpisode ?? row?.nextAiringEpisode,
+            popularity: anime.popularity ?? row?.popularity,
+            ranges: anime.ranges ?? row?.ranges,
+            status: anime.status ?? row?.status,
+            trailer: anime.trailer ?? row?.trailer,
+            trending: anime.trending ?? row?.trending,
+            episodesData: anime.episodesData ? JSON.stringify(anime.episodesData) : row?.episodesData
+          };
+
+          // Execute the SQL query
+          db.run(sql, [
+            updatedRecord.id, updatedRecord.idMal, updatedRecord.title,
+            updatedRecord.episodes, updatedRecord.bannerImage, updatedRecord.coverImage,
+            updatedRecord.description, updatedRecord.format, updatedRecord.meanScore,
+            updatedRecord.nextAiringEpisode, updatedRecord.popularity, updatedRecord.ranges,
+            updatedRecord.status, updatedRecord.trailer, updatedRecord.trending,
+            updatedRecord.episodesData
+          ], function (err) {
+            if (err) {
+              return reject(err); // Reject the promise if there's an error
+            }
+            resolve(); // Resolve the promise when done
+          });
         });
       });
-    });
-
-    // Wait for all updates to complete
-    await Promise.all(updatePromises);
+    }
 
     // Send a single response once all the anime updates are done
     res.status(200).json({ success: `${animeArray.length} anime records updated successfully.` });

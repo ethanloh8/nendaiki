@@ -15,6 +15,69 @@ import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Select, { components } from 'react-select';
 
+const selectStyles = {
+  control: (baseStyles) => ({
+    ...baseStyles,
+    backgroundColor: variants.mocha.surface0.hex,
+    color: variants.mocha.text.hex,
+    borderWidth: '1px',
+    borderColor: variants.mocha.surface2.hex,
+    ':hover': {
+      backgroundColor: variants.mocha.surface1.hex,
+    },
+    boxShadow: 'none',
+  }),
+  singleValue: (baseStyles) => ({
+    ...baseStyles,
+    color: variants.mocha.blue.hex,
+  }),
+  menu: (baseStyles) => ({
+    ...baseStyles,
+    backgroundColor: variants.mocha.surface0.hex,
+    color: variants.mocha.subtext1.hex,
+  }),
+  placeholder: (baseStyles) => ({
+    ...baseStyles,
+    color: variants.mocha.text.hex,
+  }),
+  dropdownIndicator: (baseStyles) => ({
+    ...baseStyles,
+    color: variants.mocha.text.hex,
+    ':hover': {
+      color: variants.mocha.text.hex,
+    },
+  }),
+  indicatorSeparator: (baseStyles) => ({
+    ...baseStyles,
+    backgroundColor: variants.mocha.text.hex,
+  }),
+  option: (baseStyles, { isFocused }) => ({
+    ...baseStyles,
+    backgroundColor: isFocused ? variants.mocha.surface1.hex : variants.mocha.surface0.hex, // Change background color on hover
+    color: variants.mocha.text.hex,
+    ':active': {
+      backgroundColor: variants.mocha.surface1.hex, // Optional: Change on active state
+    },
+  }),
+  multiValue: (baseStyles) => ({
+    ...baseStyles,
+    backgroundColor: variants.mocha.surface2.hex, // Change this to your desired background color
+  }),
+  multiValueLabel: (baseStyles) => ({
+    ...baseStyles,
+    color: variants.mocha.text.hex, // Change the text color inside the selected value box
+  }),
+  multiValueRemove: (baseStyles) => ({
+    ...baseStyles,
+    color: variants.mocha.text.hex, // Change the color of the remove button
+    ':hover': {
+      backgroundColor: variants.mocha.red.hex, // Change background color on hover
+      color: variants.mocha.surface1.hex, // Change text color on hover
+    },
+  }),
+};
+
+
 const sortOptions = [
   { value: 'TITLE_ROMAJI', label: 'Title (Romaji)' },
   { value: 'TITLE_ENGLISH', label: 'Title (English)' },
@@ -41,13 +104,13 @@ const yearOptions = ((startYear, endYear) => {
 })(1940, new Date().getFullYear() + 1);
 
 const formatOptions = [
-  { label: 'TV', value: 'TV Show' },
-  { label: 'TV_SHORT', value: 'TV Short' },
-  { label: 'MOVIE', value: 'Movie' },
-  { label: 'SPECIAL', value: 'Special' },
+  { label: 'TV Show', value: 'TV' },
+  { label: 'TV Short', value: 'TV_SHORT' },
+  { label: 'Movie', value: 'MOVIE' },
+  { label: 'Special', value: 'SPECIAL' },
   { label: 'OVA', value: 'OVA' },
   { label: 'ONA', value: 'ONA' },
-  { label: 'MUSIC', value: 'Music' },
+  { label: 'Music', value: 'MUSIC' },
 ];
 
 // SOURCE: https://codesandbox.io/p/sandbox/react-select-with-checkboxes-bedj8?file=%2Fsrc%2FApp.js%3A8%2C14
@@ -71,12 +134,7 @@ const InputOption = ({
   if (isFocused) bg = "#eee";
   if (isActive) bg = "#B2D4FF";
 
-  const style = {
-    alignItems: "center",
-    backgroundColor: bg,
-    color: "inherit",
-    display: "flex",
-  };
+  const style = selectStyles
 
   // prop assignment
   const props = {
@@ -288,28 +346,40 @@ type: ANIME
   return (
     <Box>
       <Bar />
-      <Box paddingY="60px" display="flex" flexDirection="column" bgColor={variants.mocha.base.hex}>
-        <Box display='flex' flexDir='row'>
-          <Input placeholder='Search' color={variants.mocha.text.hex} onChange={(e) => setQuery(e.target.value)} />
-          <Box width='250px'>
+      <Box paddingY="60px" display="flex" flexDirection="column" bgColor={variants.mocha.base.hex} minHeight="100vh">
+        <Box display='flex' wrap="wrap" justifyContent="center" alignItems="center" gap="20px" padding="20px">
+          <Input
+            placeholder="Search"
+            color={variants.mocha.text.hex}
+            variant="filled"
+            bg={variants.mocha.surface0.hex}
+            _hover={{ bg: variants.mocha.surface1.hex }}
+            onChange={(e) => setQuery(e.target.value)}
+            width="300px"
+          />
+          <Box width="200px">
             <Select
-              defaultValue={[]}
-              closeMenuOnSelect={false}
+              closeMenuOnSelect={true}
               hideSelectedOptions={false}
-              onChange={(option) => setSelectedYear(option.value)}
+              isClearable={true}
+              onChange={(option) => setSelectedYear(option ? option.value : null)}
               options={yearOptions.map(year => ({ label: year, value: year }))}
+              placeholder="Year"
+              styles={selectStyles} // Apply common styles
             />
           </Box>
-          <Box width='250px'>
+          <Box width="200px">
             <Select
-              defaultValue={[]}
-              closeMenuOnSelect={false}
+              closeMenuOnSelect={true}
               hideSelectedOptions={false}
-              onChange={(option) => setSelectedSeason(option.value)}
+              isClearable={true}
+              onChange={(option) => setSelectedSeason(option ? option.value : null)}
               options={seasonOptions}
+              placeholder="Season"
+              styles={selectStyles} // Apply common styles
             />
           </Box>
-          <Box width='250px'>
+          <Box width='200px'>
             <Select
               defaultValue={[]}
               isMulti
@@ -322,11 +392,13 @@ type: ANIME
               }}
               options={genreCollection}
               components={{
-                Option: InputOption
+                Option: InputOption,
               }}
+              placeholder="Genres"
+              styles={selectStyles} // Apply common styles
             />
           </Box>
-          <Box width='250px'>
+          <Box width='200px'>
             <Select
               defaultValue={[]}
               isMulti
@@ -341,61 +413,47 @@ type: ANIME
               components={{
                 Option: InputOption
               }}
+              placeholder="Tags"
+              styles={selectStyles} // Apply common styles
             />
           </Box>
-          <Box width='250px'>
+          <Box width="200px">
             <Select
-              defaultValue={[]}
-              closeMenuOnSelect={false}
+              closeMenuOnSelect={true}
               hideSelectedOptions={false}
-              onChange={(option) => setSelectedFormat(option.value)}
+              isClearable={true}
+              onChange={(option) => setSelectedFormat(option ? option.value : null)}
               options={formatOptions}
+              placeholder="Format"
+              styles={selectStyles} // Apply common styles
             />
           </Box>
-          <Box width='250px' _hover={{ cursor: 'pointer' }}>
+          <Box width="200px">
             <Select
               defaultValue={{ value: 'FAVOURITES_DESC', label: 'Favorites' }}
               closeMenuOnSelect={true}
               hideSelectedOptions={false}
               onChange={(option) => setSelectedSort(option.value)}
               options={sortOptions}
-              styles={{
-                control: (baseStyles) => ({
-                  borderWidth: 0,
-                }),
-                singleValue: (baseStyles) => ({
-                  color: 'red',
-                }),
-                input: (baseStyles) => ({
-                  borderWidth: 0
-                }),
-                indicatorsContainer: (baseStyles) => ({
-                  display: 'none'
-                }),
-                menu: (baseStyles) => ({
-                  ...baseStyles,
-                  background: variants.mocha.crust.hex,
-                  color: variants.mocha.text.hex
-                })
-              }}
+              styles={selectStyles} // Apply common styles
+              placeholder="Sort By"
             />
           </Box>
-          <Button colorScheme='teal' variant='solid' onClick={() => handleFilter()}>
+          <Button colorScheme="teal" variant="solid" onClick={() => handleFilter()}>
             Filter
           </Button>
         </Box>
         {results && (
           <Box
             display="flex"
-            rowGap="35px"
-            columnGap="50px"
             flexWrap="wrap"
-            marginTop="40px"
-            width="100%"
             justifyContent="center"
+            padding="20px"
+            bgColor={variants.mocha.base.hex}
+            gap="25px"
           >
             {results.map((result, index) => (
-              <MediaBox key={index} media={result} />
+              <MediaBox key={index} media={{ ...result, title: result.title.english || result.title.romaji, coverImage: result.coverImage.large }} />
             ))}
           </Box>
         )}

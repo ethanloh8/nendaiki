@@ -82,7 +82,8 @@ function HistoryPage() {
       historyData
         .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date
         .map((element, index) => {
-          const [mediaId, episodeIndex] = element.idAndEpisode.split('-');
+          const [mediaId, episodeIndexString] = element.idAndEpisode.split('-');
+          const episodeIndex = parseInt(episodeIndexString);
           const media = mediaData[mediaId]; // Fetch media data using mediaId
           if (!media) return null;
 
@@ -94,12 +95,13 @@ function HistoryPage() {
           month = month < 10 ? `0${month}` : month;
           day = day < 10 ? `0${day}` : day;
           const formattedDateStr = `${month}/${day}/${year}`;
+          const progress = episode.duration > 0 ? (episode.time / episode.duration) * 100 : 0;
 
           return (
             <Box
               key={index}
               textAlign="left"
-              onClick={() => navigate('/video-page', { state: { episodeData: { mediaId, episodeIndex } } })}
+              onClick={() => navigate('/video-page', { state: { mediaObject: media, episodeData: { mediaId, episodeIndex } } })}
               width='300px'
               position='relative'
               _before={{
@@ -145,6 +147,27 @@ function HistoryPage() {
                   transform='translate(-50%, -50%)'
                   _hover={{ bgColor: 'rgba(0, 0, 0, 0.8)' }}
                 />
+                {progress > 0 && (
+                  <Box
+                    position='absolute'
+                    bottom='0'
+                    left='0'
+                    height='5px'
+                    width='100%'
+                    bg='gray.600'
+                    borderRadius='0 0 10px 10px'
+                    overflow='hidden'
+                    zIndex='2'
+                    opacity='0.8'
+                  >
+                    <Box
+                      height='100%'
+                      width={`${progress}%`}
+                      bg='rgba(149,2,61,0.7)'
+                      transition='width 0.3s ease'
+                    />
+                  </Box>
+                )}
               </Box>
               <Text
                 marginX='5px'
@@ -166,7 +189,7 @@ function HistoryPage() {
                 fontSize='16px'
                 color={variants.mocha.subtext1.hex}
               >
-                E{episodeIndex} {episode.title && '-'} {episode.title} {/* Fetch episode title */}
+                {episode.title ? `E${episodeIndex + 1} - ${episode.title}` : `Episode ${episodeIndex + 1}`}
               </Heading>
               <Box display='flex' flexDir='row' justifyContent='space-between'>
                 <Text

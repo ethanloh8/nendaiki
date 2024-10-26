@@ -12,6 +12,12 @@
 
   <body>
     <div id="root"></div>
+    <style>
+      body {
+        -webkit-user-select: none; /* Disable text selection in webkit-based browsers (used by Electron) */
+        user-select: none; /* Standard CSS property */
+      }
+    </style>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

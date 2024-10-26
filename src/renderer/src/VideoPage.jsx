@@ -17,6 +17,8 @@ import Hls from 'hls.js';
 import { IoMdPlay } from "react-icons/io";
 import _ from 'lodash';
 
+// TODO: add ability to switch servers
+// TODO: only show skip button if skip is available at the correct timestamp
 function VideoPage() {
   const location = useLocation();
   const episodeData = location.state?.episodeData;
@@ -27,15 +29,14 @@ function VideoPage() {
 
   const navigate = useNavigate();
   const toast = useToast();
-  const episodesData = mediaData.episodesData;
-  const episodes = mediaData.episodesData;
+  const episodes = mediaData.episodesData; // Renaming episodesData to episodes
   const hasFetchedSourceRef = useRef(false);
   const [source, setSource] = useState(null);
   const videoRef = useRef(null);
   const [player, setPlayer] = useState(null);
 
   // Function to update the anime (including episode time tracking)
-  const updateAnime = async (updatedEpisodesData) => {
+  const updateAnime = async (updatedEpisodes) => { // Change updatedEpisodesData to updatedEpisodes
     try {
       await axios.post('http://localhost:3001/update-anime', {
         id: mediaData.id,
@@ -53,7 +54,7 @@ function VideoPage() {
         status: mediaData.status,
         trailer: mediaData.trailer,
         trending: mediaData.trending,
-        episodesData: updatedEpisodesData,
+        episodesData: updatedEpisodes, // Send updated episodes data
       });
     } catch (error) {
       console.log('Error updating anime:', error);
@@ -70,7 +71,7 @@ function VideoPage() {
         isClosable: false,
       });
       try {
-        const response = await axios.get(`http://localhost:3000/meta/anilist/watch/${episodesData[episodeData.episodeIndex].id}`);
+        const response = await axios.get(`http://localhost:3000/meta/anilist/watch/${episodes[episodeData.episodeIndex].id}`);
 
         try {
           const skips = await axios.get(`https://api.aniskip.com/v2/skip-times/${mediaData.idMal}/${episodeData.episodeIndex + 1}?types=op&types=ed&episodeLength=0`);
@@ -87,11 +88,9 @@ function VideoPage() {
 
         const defaultSource = response.data.sources.find(source => source.quality === 'default').url;
         episodes[episodeData.episodeIndex].source = defaultSource;
-        console.log(episodes[episodeData.episodeIndex].source)
-
 
         // Update episodes with new source and sync with the backend
-        await updateAnime(episodes);
+        await updateAnime(episodes); // Update with episodes
 
         setSource(defaultSource);
         toast.close('loading-video');
@@ -117,29 +116,38 @@ function VideoPage() {
         console.log(`Requesting data for media ${episodeData.mediaId}`);
         fetchStreamLinks();
       }
-      axios.post('http://localhost:3001/update-history', { idAndEpisode: `${episodeData.mediaId}-${episodeData.episodeIndex}`, date: new Date() })
+      axios.post('http://localhost:3001/update-history', { idAndEpisode: `${episodeData.mediaId}-${episodeData.episodeIndex}`, date: new Date() });
 
       hasFetchedSourceRef.current = true;
     }
 
     // Restore episode time when video loads
-    if (player && player.playing !== true && episodesData[episodeData.episodeIndex].time) {
+    if (player && player.playing !== true && episodes[episodeData.episodeIndex].time) {
        player.once('canplay', event => {
-         player.currentTime = episodesData[episodeData.episodeIndex].time;
+         player.currentTime = episodes[episodeData.episodeIndex].time;
        });
     }
 
-    // Save episode time and duration before unloading or when navigating away
+    // Save episode time and duration to backend if not exiting
     const handleUnload = async () => {
       if (player) {
-        const updatedEpisodes = [...episodesData];
+        const updatedEpisodes = [...episodes];
         updatedEpisodes[episodeData.episodeIndex].time = player.currentTime;
         updatedEpisodes[episodeData.episodeIndex].duration = player.duration;
         await updateAnime(updatedEpisodes); // Sync with the backend
       }
     };
 
-    window.addEventListener('unload', handleUnload);
+    // Save episode time and duration to localStorage if exiting
+    window.addEventListener('unload', function(event) {
+      if (player) {
+        const timestampObject = {}
+        timestampObject[episodeData.mediaId] = episodes;
+        timestampObject[episodeData.mediaId][episodeData.episodeIndex].time = player.currentTime
+        timestampObject[episodeData.mediaId][episodeData.episodeIndex].duration = player.duration
+        localStorage.setItem('saved-timestamp', JSON.stringify(timestampObject));
+      }
+    });
 
     return () => {
       if (player) {
@@ -211,10 +219,10 @@ function VideoPage() {
                   zIndex="10"
                   _hover={{ bgColor: "rgba(0, 0, 0, 0.9)" }}
                   onClick={() => {
-                    if (player.currentTime < episodesData[episodeData.episodeIndex].opInterval.endTime) {
-                      player.currentTime = episodesData[episodeData.episodeIndex].opInterval.endTime;
+                    if (player.currentTime < episodes[episodeData.episodeIndex].opInterval.endTime) {
+                      player.currentTime = episodes[episodeData.episodeIndex].opInterval.endTime;
                     } else {
-                      player.currentTime = episodesData[episodeData.episodeIndex].edInterval.endTime;
+                      player.currentTime = episodes[episodeData.episodeIndex].edInterval.endTime;
                     }
                   }}
                 />
@@ -243,7 +251,11 @@ function VideoPage() {
               {mediaData.title}
             </Heading>
             <Heading color={variants.mocha.text.hex} fontSize='30px' marginTop='8px'>
-              E{episodeData.episodeIndex + 1} - {episodes[episodeData.episodeIndex].title}
+              {
+                episodes[episodeData.episodeIndex].title ?
+                `E${episodeData.episodeIndex + 1} - ${episodes[episodeData.episodeIndex].title}`
+                : `Episode ${episodeData.episodeIndex + 1}`
+              }
             </Heading>
             {
               episodes[episodeData.episodeIndex].description &&
@@ -310,7 +322,11 @@ function VideoPage() {
                   </Box>
                   <Box padding='12px' height='100%' width='240px'>
                     <Heading color={variants.mocha.text.hex} fontSize='17px' className='episode-name'>
-                      E{episodeData.episodeIndex + 2} - {episodes[episodeData.episodeIndex + 1].title}
+                      {
+                        episodes[episodeData.episodeIndex + 1].title ?
+                        `E${episodeData.episodeIndex + 2} - ${episodes[episodeData.episodeIndex].title}`
+                        : `Episode ${episodeData.episodeIndex + 2}`
+                      }
                     </Heading>
                     <Text color={variants.mocha.subtext0.hex} fontSize='13px' className='episode-desc'>
                       {episodes[episodeData.episodeIndex + 1].description}
