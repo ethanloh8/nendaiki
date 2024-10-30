@@ -1,16 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import {
-  SimpleGrid,
-  Box,
-  useToast,
-  Heading,
-  IconButton,
-  Text
-} from '@chakra-ui/react';
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon
-} from '@chakra-ui/icons';
+import { SimpleGrid, Box, useToast, Heading, IconButton } from '@chakra-ui/react';
+import { ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import HomePanel1 from './components/HomePanel1';
 import { variants } from '@catppuccin/palette';
 import axios from 'axios';
@@ -19,36 +9,45 @@ import MediaBox from './components/MediaBox';
 
 function Home() {
   const [featuredData, setFeaturedData] = useState(null);
-  const [historyData, setHistoryData] = useState([]); // History state from the backend
-  const [mediaData, setMediaData] = useState({}); // Anime data fetched from backend using get-anime-batch
+  const [historyData, setHistoryData] = useState([]);
+  const [mediaData, setMediaData] = useState({});
   const hasFetchedFeaturedDataRef = useRef(false);
   const trendingBoxRef = useRef(null);
   const historyBoxRef = useRef(null);
   const toast = useToast();
 
-  // Fetch the history from the backend and media data for each anime in the history
+  const getCurrentWeek = () => {
+    const now = new Date();
+    const dayOfWeek = (now.getDay() + 6) % 7; // Monday = 0
+    now.setDate(now.getDate() - dayOfWeek + 3); // Move to Thursday
+
+    const firstThursday = new Date(now.getFullYear(), 0, 4);
+    return 1 + Math.round(
+      ((now.getTime() - firstThursday.getTime()) / (24 * 60 * 60 * 1000) - 3 + firstThursday.getDay()) / 7
+    );
+  };
+
+  const scrollContent = (ref, direction) => {
+    const maxScrollLength = ref.current.scrollWidth - ref.current.clientWidth;
+    const scrollValue = maxScrollLength / 2 * direction;
+    ref.current.scrollTo({ left: ref.current.scrollLeft + scrollValue, behavior: 'smooth' });
+  };
+
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const response = await axios.get('http://localhost:3001/get-history');
-        const history = response.data;
-
+        const { data: history } = await axios.get('http://localhost:3001/get-history');
         setHistoryData(history);
 
-        // Extract media IDs from history
         const mediaIds = history.map(item => item.idAndEpisode.split('-')[0]);
-
         if (mediaIds.length > 0) {
-          // Fetch anime data in a batch using the get-anime-batch endpoint
-          const mediaResponse = await axios.post('http://localhost:3001/get-anime-batch', { ids: mediaIds });
-
-          // Set the media data
-          setMediaData(mediaResponse.data);
+          const { data } = await axios.post('http://localhost:3001/get-anime-batch', { ids: mediaIds });
+          setMediaData(data);
         }
-      } catch (error) {
+      } catch {
         toast({
           title: 'Error fetching history',
-          description: "Please check your network connectivity",
+          description: 'Please check your network connectivity',
           status: 'error',
           duration: 5000,
           isClosable: true,
@@ -59,13 +58,13 @@ function Home() {
     const updateEpisodeTimestamp = async () => {
       const savedTimestamp = localStorage.getItem('saved-timestamp');
       if (savedTimestamp) {
-        const mapping = Object.entries(JSON.parse(savedTimestamp))[0];
-        await axios.post('http://localhost:3001/update-anime', { id: mapping[0], episodesData: mapping[1] });
+        const [id, episodesData] = Object.entries(JSON.parse(savedTimestamp))[0];
+        await axios.post('http://localhost:3001/update-anime', { id, episodesData });
         localStorage.removeItem('saved-timestamp');
       }
-    }
+    };
 
-    fetchHistory(); // Call the history fetch function
+    fetchHistory();
     updateEpisodeTimestamp();
   }, []);
 
@@ -73,20 +72,11 @@ function Home() {
     const fetchFeaturedData = async () => {
       try {
         const currentDate = new Date();
-        const currentMonth = currentDate.getMonth();
-        let currentSeason;
-        if (currentMonth >= 3 && currentMonth <= 5) {
-          currentSeason = 'SPRING';
-        } else if (currentMonth >= 6 && currentMonth <= 8) {
-          currentSeason = 'SUMMER';
-        } else if (currentMonth >= 9 && currentMonth <= 11) {
-          currentSeason = 'FALL';
-        } else {
-          currentSeason = 'WINTER';
-        }
+        const seasonMonths = ["WINTER", "SPRING", "SUMMER", "FALL"];
+        const currentSeason = seasonMonths[Math.floor((currentDate.getMonth() + 1) / 3) % 4];
         const currentYear = currentDate.getFullYear();
 
-        const data = JSON.stringify({
+        const queryData = JSON.stringify({
           query: `
             {
               Page (page: 1, perPage: 20) {
@@ -110,26 +100,23 @@ function Home() {
                   meanScore
                   popularity
                   episodes
+                  genres
                 }
               }
             }
           `
         });
 
-        const response = await axios.request({
-          method: 'post',
-          url: 'https://graphql.anilist.co',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          data: data
+        const { data } = await axios.post('https://graphql.anilist.co', queryData, {
+          headers: { 'Content-Type': 'application/json' }
         });
-        setFeaturedData(response.data);
-        sessionStorage.setItem('featuredData', JSON.stringify(response.data));
-      } catch (error) {
+
+        setFeaturedData(data);
+        localStorage.setItem('featuredData', JSON.stringify({ ...data, week: getCurrentWeek() }));
+      } catch {
         toast({
           title: 'Error fetching featured anime',
-          description: "Please check your network connectivity",
+          description: 'Please check your network connectivity',
           status: 'error',
           duration: 5000,
           isClosable: true,
@@ -138,10 +125,9 @@ function Home() {
     };
 
     if (!hasFetchedFeaturedDataRef.current) {
-      fetchFeaturedData();
-      const cachedFeaturedData = sessionStorage.getItem('featuredData');
-      if (cachedFeaturedData) {
-        setFeaturedData(JSON.parse(cachedFeaturedData));
+      const cachedData = JSON.parse(localStorage.getItem('featuredData'));
+      if (cachedData && getCurrentWeek() === cachedData.week) {
+        setFeaturedData(cachedData);
       } else {
         fetchFeaturedData();
       }
@@ -149,131 +135,95 @@ function Home() {
     }
   }, []);
 
-  const handleScrollLeft = (ref) => {
-    const maxScrollLength = ref.current.scrollWidth - ref.current.clientWidth;
-    const currentPosition = ref.current.scrollLeft;
-    ref.current.scrollTo({ left: currentPosition - (maxScrollLength / 2), behavior: 'smooth' });
-  };
-
-  const handleScrollRight = (ref) => {
-    const maxScrollLength = ref.current.scrollWidth - ref.current.clientWidth;
-    const currentPosition = ref.current.scrollLeft;
-    ref.current.scrollTo({ left: currentPosition + (maxScrollLength / 2), behavior: 'smooth' });
-  };
-
   return (
     <Box>
       <Bar />
-      <Box display='flex' paddingY='60px' flexDirection='column' bgColor={variants.mocha.base.hex}>
+      <Box display="flex" paddingY="60px" flexDirection="column" bgColor={variants.mocha.base.hex}>
         <HomePanel1 popularMedia={featuredData?.data.Page.media.slice(0, 11).sort(() => Math.random() - 0.5)} />
-        <Box paddingX='70px' paddingY='40px' display='flex' flexDir='column' rowGap='30px'>
+        <Box paddingX="70px" paddingY="40px" display="flex" flexDir="column" rowGap="30px">
+
           {historyData.length > 0 && (
             <Box>
               <Heading color={variants.mocha.text.hex}>Last Watched</Heading>
-              <Box
-                ref={historyBoxRef}
-                display='flex'
-                flexDir='row'
-                gap='30px'
-                overflowX='auto'
-                marginTop='15px'
-                width='100%'
-                position='relative'
-              >
+              <Box ref={historyBoxRef} display="flex" flexDir="row" gap="30px" overflowX="auto" mt="15px" width="100%" position="relative">
                 <ChevronLeftIcon
-                  position='sticky'
-                  marginLeft='-80px'
-                  zIndex='1'
-                  left='0'
-                  boxSize='50px'
-                  height='100%'
-                  alignSelf='center'
+                  position="sticky"
+                  ml="-80px"
+                  zIndex="1"
+                  left="0"
+                  boxSize="50px"
+                  height="100%"
+                  alignSelf="center"
                   color={`rgba(${variants.mocha.text.rgb.slice(4, -1)}, 0.3)`}
                   _hover={{ color: variants.mocha.text.hex, cursor: 'pointer' }}
-                  onMouseDown={() => handleScrollLeft(historyBoxRef)}
+                  onMouseDown={() => scrollContent(historyBoxRef, -1)}
                 />
-                {
-                  historyData
-                    .sort((a, b) => new Date(b.date) - new Date(a.date))
-                    .reduce((acc, historyItem) => {
-                      const [mediaId, episodeIndex] = historyItem.idAndEpisode.split('-');
-                      const media = mediaData[mediaId]; // Get media data
-
-                      // Check if media already exists in the accumulator (based on media.title)
-                      if (media && !acc.some(item => item.title === media.title)) {
-                        acc.push({ ...historyItem, title: media.title }); // Push only unique titles
-                      }
-
-                      return acc;
-                    }, []) // Initialize an empty array for accumulation
-                    .map((historyItem) => {
-                      const [mediaId, episodeIndex] = historyItem.idAndEpisode.split('-');
-                      const media = mediaData[mediaId]; // Use the fetched media data
-                      if (media) {
-                        return <MediaBox key={mediaId} media={media} episodeIndex={episodeIndex} />;
-                      }
-                      return null;
-                    })
-                }
+                {historyData
+                  .sort((a, b) => new Date(b.date) - new Date(a.date))
+                  .reduce((uniqueItems, item) => {
+                    const [mediaId, episodeIndex] = item.idAndEpisode.split('-');
+                    const media = mediaData[mediaId];
+                    if (media && !uniqueItems.some(({ title }) => title === media.title)) {
+                      uniqueItems.push({ ...item, title: media.title });
+                    }
+                    return uniqueItems;
+                  }, [])
+                  .map(({ idAndEpisode }) => {
+                    const [mediaId, episodeIndex] = idAndEpisode.split('-');
+                    return mediaData[mediaId] ? (
+                      <MediaBox key={mediaId} media={mediaData[mediaId]} episodeIndex={episodeIndex} />
+                    ) : null;
+                  })}
                 <ChevronRightIcon
-                  position='sticky'
-                  marginLeft='-80px'
-                  right='0'
-                  boxSize='50px'
-                  height='100%'
-                  alignSelf='center'
+                  position="sticky"
+                  ml="-80px"
+                  right="0"
+                  boxSize="50px"
+                  height="100%"
+                  alignSelf="center"
                   color={`rgba(${variants.mocha.text.rgb.slice(4, -1)}, 0.3)`}
                   _hover={{ color: variants.mocha.text.hex, cursor: 'pointer' }}
-                  onMouseDown={() => handleScrollRight(historyBoxRef)}
+                  onMouseDown={() => scrollContent(historyBoxRef, 1)}
                 />
               </Box>
             </Box>
           )}
+
           <Box>
             <Heading color={variants.mocha.text.hex}>Trending Anime</Heading>
-            <Box
-              ref={trendingBoxRef}
-              display='flex'
-              flexDir='row'
-              gap='30px'
-              overflowX='auto'
-              marginTop='15px'
-              width='100%'
-              position='relative'
-            >
+            <Box ref={trendingBoxRef} display="flex" flexDir="row" gap="30px" overflowX="auto" mt="15px" width="100%" position="relative">
               <ChevronLeftIcon
-                position='sticky'
-                marginLeft='-80px'
-                zIndex='1'
-                left='0'
-                boxSize='50px'
-                height='100%'
-                alignSelf='center'
+                position="sticky"
+                ml="-80px"
+                zIndex="1"
+                left="0"
+                boxSize="50px"
+                height="100%"
+                alignSelf="center"
                 color={`rgba(${variants.mocha.text.rgb.slice(4, -1)}, 0.3)`}
                 _hover={{ color: variants.mocha.text.hex, cursor: 'pointer' }}
-                onMouseDown={() => handleScrollLeft(trendingBoxRef)}
+                onMouseDown={() => scrollContent(trendingBoxRef, -1)}
               />
-              {
-                featuredData?.data.Page.media
-                  .sort((a, b) => b.trending - a.trending)
-                  .slice(0, 10)
-                  .map((media) => {
-                    const newMedia = { ...media, title: media.title.english || media.title.romaji, coverImage: media.coverImage.large }
-                    return (
-                      <MediaBox key={media.id} media={newMedia} />
-                    )
-                  })
-              }
+              {featuredData?.data.Page.media
+                .sort((a, b) => b.trending - a.trending)
+                .slice(0, 10)
+                .map((media) => (
+                  <MediaBox key={media.id} media={{
+                    ...media,
+                    title: media.title.english || media.title.romaji,
+                    coverImage: media.coverImage.large
+                  }} />
+                ))}
               <ChevronRightIcon
-                position='sticky'
-                marginLeft='-80px'
-                right='0'
-                boxSize='50px'
-                height='100%'
-                alignSelf='center'
+                position="sticky"
+                ml="-80px"
+                right="0"
+                boxSize="50px"
+                height="100%"
+                alignSelf="center"
                 color={`rgba(${variants.mocha.text.rgb.slice(4, -1)}, 0.3)`}
                 _hover={{ color: variants.mocha.text.hex, cursor: 'pointer' }}
-                onMouseDown={() => handleScrollRight(trendingBoxRef)}
+                onMouseDown={() => scrollContent(trendingBoxRef, 1)}
               />
             </Box>
           </Box>

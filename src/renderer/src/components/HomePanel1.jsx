@@ -55,6 +55,23 @@ function HomePanel1({ popularMedia }) {
           <Heading fontSize='48px' textAlign='center' color={variants.mocha.text.hex}>
             {popularMedia[currentIndex].title.english == null ? popularMedia[currentIndex].title.romaji : popularMedia[currentIndex].title.english}
           </Heading>
+          <Box display='flex' flexWrap='wrap' gap='8px' marginTop='10px' justifyContent='center'>
+            {popularMedia[currentIndex].genres.map((genre, index) => (
+              <Text
+                key={index}
+                paddingX='8px'
+                paddingY='4px'
+                borderRadius='5px'
+                backgroundColor={variants.mocha.surface0.hex}  // Background color for tags
+                border={`1px solid ${variants.mocha.overlay0.hex}`}  // Border color
+                color={variants.mocha.pink.hex}  // Text color
+                fontWeight='bold'
+                fontSize='14px'
+              >
+                {genre}
+              </Text>
+            ))}
+          </Box>
           <Text
             marginTop='5%'
             color={variants.mocha.subtext0.hex}

@@ -29,8 +29,9 @@ function VideoPage() {
 
   const navigate = useNavigate();
   const toast = useToast();
-  const episodes = mediaData.episodesData; // Renaming episodesData to episodes
+  const [episodes, setEpisodes] = useState(null)
   const hasFetchedSourceRef = useRef(false);
+  const hasFetchedMediaDataRef = useRef(false);
   const [source, setSource] = useState(null);
   const videoRef = useRef(null);
   const [player, setPlayer] = useState(null);
@@ -38,28 +39,80 @@ function VideoPage() {
   // Function to update the anime (including episode time tracking)
   const updateAnime = async (updatedEpisodes) => { // Change updatedEpisodesData to updatedEpisodes
     try {
-      await axios.post('http://localhost:3001/update-anime', {
-        id: mediaData.id,
-        idMal: mediaData.idMal,
-        title: mediaData.title,
-        episodes: mediaData.episodes,
-        bannerImage: mediaData.bannerImage,
-        coverImage: mediaData.coverImage,
-        description: mediaData.description,
-        format: mediaData.format,
-        meanScore: mediaData.meanScore,
-        nextAiringEpisode: mediaData.nextAiringEpisode,
-        popularity: mediaData.popularity,
-        ranges: mediaData.ranges,
-        status: mediaData.status,
-        trailer: mediaData.trailer,
-        trending: mediaData.trending,
-        episodesData: updatedEpisodes, // Send updated episodes data
-      });
+      await axios.post('http://localhost:3001/update-anime', { id: mediaData.id, episodesData: updatedEpisodes });
     } catch (error) {
       console.log('Error updating anime:', error);
     }
   };
+
+  const getRanges = (n) => {
+    const rangeSize = 50;
+    const numRanges = Math.ceil(n / rangeSize);
+    const ranges = [];
+
+    for (let i = 0; i < numRanges; i++) {
+      const start = i * rangeSize + 1;
+      const end = Math.min((i + 1) * rangeSize, n);
+      ranges.push(`${start}-${end}`);
+    }
+
+    return ranges;
+  };
+
+  useEffect(() => {
+    const fetchCache = async () => {
+      try {
+        if (Date.now() > new Date(mediaData.nextAiringEpisode)) {
+          console.log(`Updating cached data for media ${episodeData.mediaId}`);
+          const response1 = await axios.get(`http://localhost:3000/meta/anilist/episodes/${episodeData.mediaId}`);
+
+          // If new episodes are available, add them to the cached episodes
+          const newEpisodes = response1.data.slice(mediaData.episodesData.length); // Get only new episodes
+          mediaData.episodesData = [...mediaData.episodesData, ...newEpisodes]; // Append new episodes
+
+          // Update the episode count and ranges based on the new data
+          mediaData.episodes = mediaData.episodesData.length;
+          mediaData.ranges = JSON.stringify(getRanges(mediaData.episodesData.length));
+
+          // Fetch the nextAiringEpisode from AniList using axios.post
+          const nextAiringEpisodeResponse = await axios.post('https://graphql.anilist.co', {
+            query: `
+              {
+                Media(id: ${episodeData.mediaId}) {
+                  nextAiringEpisode {
+                    timeUntilAiring
+                  }
+                }
+              }
+            `
+          });
+
+          const timeUntilAiring = nextAiringEpisodeResponse.data.data.Media.nextAiringEpisode?.timeUntilAiring;
+          const newNextAiringEpisode = timeUntilAiring
+            ? new Date(Date.now() + (timeUntilAiring * 1000))
+            : null;
+
+          mediaData.nextAiringEpisode = newNextAiringEpisode;
+
+          // Sync the updated cached media with the backend, including nextAiringEpisode
+          await axios.post('http://localhost:3001/update-anime', {
+            id: episodeData.mediaId,
+            episodesData: mediaData.episodesData,
+            nextAiringEpisode: mediaData.nextAiringEpisode, // Include nextAiringEpisode
+          });
+        }
+
+        setEpisodes(mediaData.episodesData);
+      } catch (error) {
+        console.log(error)
+      }
+    };
+
+    if (!hasFetchedMediaDataRef.current) {
+      fetchCache();
+      hasFetchedMediaDataRef.current = true;
+    }
+  }, []);
 
   useEffect(() => {
     const fetchStreamLinks = async () => {
@@ -107,7 +160,7 @@ function VideoPage() {
       }
     };
 
-    if (!hasFetchedSourceRef.current) {
+    if (!hasFetchedSourceRef.current && episodes) {
       const currentMediaSource = episodes[episodeData.episodeIndex].source;
       if (currentMediaSource) {
         console.log(`Using cached data for media ${episodeData.mediaId}`);
@@ -155,7 +208,7 @@ function VideoPage() {
         player.destroy();
       }
     };
-  }, [player]);
+  }, [player, episodes]);
 
   useLayoutEffect(() => {
     if (source && videoRef.current) {
@@ -201,31 +254,32 @@ function VideoPage() {
   return (
     <Box>
       <Bar />
+      {episodes &&
       <Box paddingY='60px' width='100%' display='flex' flexDir='column' bgColor={variants.mocha.base.hex}>
         <Box width='100%' textAlign='center' bg='black' display='flex' justifyContent='center'>
           {
             source &&
               <Box width='75%' maxHeight='75%' objectFit='initial' position='relative'>
                 <video ref={videoRef} controls poster={episodes[episodeData.episodeIndex].img}></video>
-                <IconButton
-                  icon={<IoMdPlay />}
-                  isRound="true"
-                  bgColor="rgba(0, 0, 0, 0.7)"
-                  color="white"
-                  size="lg"
-                  position="absolute"
-                  bottom="50px"
-                  right="10px"
-                  zIndex="10"
-                  _hover={{ bgColor: "rgba(0, 0, 0, 0.9)" }}
-                  onClick={() => {
-                    if (player.currentTime < episodes[episodeData.episodeIndex].opInterval.endTime) {
-                      player.currentTime = episodes[episodeData.episodeIndex].opInterval.endTime;
-                    } else {
-                      player.currentTime = episodes[episodeData.episodeIndex].edInterval.endTime;
-                    }
-                  }}
-                />
+                {/* <IconButton */}
+                {/*   icon={<IoMdPlay />} */}
+                {/*   isRound="true" */}
+                {/*   bgColor="rgba(0, 0, 0, 0.7)" */}
+                {/*   color="white" */}
+                {/*   size="lg" */}
+                {/*   position="absolute" */}
+                {/*   bottom="50px" */}
+                {/*   right="10px" */}
+                {/*   zIndex="10" */}
+                {/*   _hover={{ bgColor: "rgba(0, 0, 0, 0.9)" }} */}
+                {/*   onClick={() => { */}
+                {/*     if (player.currentTime < episodes[episodeData.episodeIndex].opInterval.endTime) { */}
+                {/*       player.currentTime = episodes[episodeData.episodeIndex].opInterval.endTime; */}
+                {/*     } else { */}
+                {/*       player.currentTime = episodes[episodeData.episodeIndex].edInterval.endTime; */}
+                {/*     } */}
+                {/*   }} */}
+                {/* /> */}
               </Box>
           }
         </Box>
@@ -338,6 +392,7 @@ function VideoPage() {
           </Box>
         </Box>
       </Box>
+      }
     </Box>
   );
 }

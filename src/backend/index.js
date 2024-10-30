@@ -2,6 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const sqlite3 = require('sqlite3').verbose();
+const os = require('os');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const port = 3001;
@@ -9,11 +12,34 @@ const port = 3001;
 app.use(cors());
 app.use(express.json());
 
-let db = new sqlite3.Database('./database', (err) => {
+// TODO: export/import database
+const getDatabasePath = () => {
+  let dbPath;
+  const baseDir = os.platform() === 'win32'
+    ? path.join(process.env.APPDATA, 'nendaiki') // Windows path
+    : os.platform() === 'darwin'
+      ? path.join(process.env.HOME, 'Library', 'Application Support', 'nendaiki') // macOS path
+      : path.join(process.env.HOME, '.local', 'share', 'nendaiki'); // Linux path
+
+  dbPath = path.join(baseDir, 'database.sqlite'); // Name your SQLite database file
+
+  // Ensure the directory exists
+  if (!fs.existsSync(baseDir)) {
+    fs.mkdirSync(baseDir, { recursive: true }); // Create the directory if it does not exist
+  }
+
+  return dbPath;
+};
+
+// Set the database path
+const dbPath = getDatabasePath();
+
+// Initialize SQLite database
+let db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     return console.error(err.message);
   }
-  console.log('Connected to the SQLite database.');
+  console.log(`Connected to the SQLite database at ${dbPath}`);
 });
 
 // Create anime table if not exists
@@ -30,9 +56,11 @@ db.run(`CREATE TABLE IF NOT EXISTS anime (
   nextAiringEpisode TEXT,
   popularity INTEGER,
   ranges TEXT,
+  selectedRange INTEGER,
   status TEXT,
   trailer TEXT,
   trending INTEGER,
+  genres TEXT,
   episodesData TEXT
 )`, (err) => {
   if (err) {
@@ -54,9 +82,13 @@ db.run(`CREATE TABLE IF NOT EXISTS history (
 app.post('/update-anime', express.json(), (req, res) => {
   const {
     id, idMal, title, episodes, bannerImage, coverImage, description,
-    format, meanScore, nextAiringEpisode, popularity, ranges, status,
-    trailer, trending, episodesData
+    format, meanScore, nextAiringEpisode, popularity, ranges, selectedRange, status,
+    trailer, trending, genres, episodesData
   } = req.body;
+
+  if (!id) {
+    return res.status(500).json({ error: "Required 'id' field not provided." });
+  }
 
   // First, fetch the existing record if it exists
   const selectSql = `SELECT * FROM anime WHERE id = ?`;
@@ -80,9 +112,11 @@ app.post('/update-anime', express.json(), (req, res) => {
       nextAiringEpisode: nextAiringEpisode ?? row?.nextAiringEpisode,
       popularity: popularity ?? row?.popularity,
       ranges: ranges ?? row?.ranges,
+      selectedRange: selectedRange ?? row?.selectedRange,
       status: status ?? row?.status,
       trailer: trailer ?? row?.trailer,
       trending: trending ?? row?.trending,
+      genres: genres ?? row?.genres,
       episodesData: episodesData ? JSON.stringify(episodesData) : row?.episodesData
     };
 
@@ -90,9 +124,9 @@ app.post('/update-anime', express.json(), (req, res) => {
     const sql = `
       INSERT OR REPLACE INTO anime (
         id, idMal, title, episodes, bannerImage, coverImage, description,
-        format, meanScore, nextAiringEpisode, popularity, ranges, status,
-        trailer, trending, episodesData
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        format, meanScore, nextAiringEpisode, popularity, ranges, selectedRange, status,
+        trailer, trending, genres, episodesData
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     // Execute the SQL query
@@ -100,8 +134,8 @@ app.post('/update-anime', express.json(), (req, res) => {
       updatedRecord.id, updatedRecord.idMal, updatedRecord.title, updatedRecord.episodes,
       updatedRecord.bannerImage, updatedRecord.coverImage, updatedRecord.description,
       updatedRecord.format, updatedRecord.meanScore, updatedRecord.nextAiringEpisode,
-      updatedRecord.popularity, updatedRecord.ranges, updatedRecord.status,
-      updatedRecord.trailer, updatedRecord.trending, updatedRecord.episodesData
+      updatedRecord.popularity, updatedRecord.ranges, updatedRecord.selectedRange, updatedRecord.status,
+      updatedRecord.trailer, updatedRecord.trending, updatedRecord.genres, updatedRecord.episodesData
     ], function(err) {
       if (err) {
         return res.status(500).json({ error: err.message });
@@ -124,9 +158,9 @@ app.post('/update-anime-batch', async (req, res) => {
   const sql = `
     INSERT OR REPLACE INTO anime (
       id, idMal, title, episodes, bannerImage, coverImage, description,
-      format, meanScore, nextAiringEpisode, popularity, ranges, status,
-      trailer, trending, episodesData
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      format, meanScore, nextAiringEpisode, popularity, ranges, selectedRange, status,
+      trailer, trending, genres, episodesData
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   try {
@@ -152,9 +186,11 @@ app.post('/update-anime-batch', async (req, res) => {
             nextAiringEpisode: anime.nextAiringEpisode ?? row?.nextAiringEpisode,
             popularity: anime.popularity ?? row?.popularity,
             ranges: anime.ranges ?? row?.ranges,
+            selectedRange: selectedRange ?? row?.selectedRange,
             status: anime.status ?? row?.status,
             trailer: anime.trailer ?? row?.trailer,
             trending: anime.trending ?? row?.trending,
+            genres: anime.genres ?? row?.genres,
             episodesData: anime.episodesData ? JSON.stringify(anime.episodesData) : row?.episodesData
           };
 
@@ -163,8 +199,8 @@ app.post('/update-anime-batch', async (req, res) => {
             updatedRecord.id, updatedRecord.idMal, updatedRecord.title,
             updatedRecord.episodes, updatedRecord.bannerImage, updatedRecord.coverImage,
             updatedRecord.description, updatedRecord.format, updatedRecord.meanScore,
-            updatedRecord.nextAiringEpisode, updatedRecord.popularity, updatedRecord.ranges,
-            updatedRecord.status, updatedRecord.trailer, updatedRecord.trending,
+            updatedRecord.nextAiringEpisode, updatedRecord.popularity, updatedRecord.ranges, updatedRecord.selectedRange,
+            updatedRecord.status, updatedRecord.trailer, updatedRecord.trending, updatedRecord.genres,
             updatedRecord.episodesData
           ], function (err) {
             if (err) {

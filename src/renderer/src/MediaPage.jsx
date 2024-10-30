@@ -14,6 +14,8 @@ import { variants } from '@catppuccin/palette';
 import axios from 'axios';
 import { IoMdPlay } from "react-icons/io";
 
+// TODO: make components adjust to window size
+// TODO: improve anime description panel
 function MediaPage() {
   const location = useLocation();
   const mediaId = location.state?.mediaId;
@@ -31,6 +33,10 @@ function MediaPage() {
   const [selectedRange, setSelectedRange] = useState(null);
   const [episodesDisplay, setEpisodesDisplay] = useState(null);
   const [episodeRanges, setEpisodeRanges] = useState(null);
+
+  const updateSelectedRange = async (range) => {
+    await axios.post('http://localhost:3001/update-anime', { id: mediaId, selectedRange: range });
+  }
 
   const getRanges = (n) => {
     const rangeSize = 50;
@@ -100,6 +106,7 @@ function MediaPage() {
                 nextAiringEpisode {
                   timeUntilAiring
                 }
+                genres
               }
             }
           `
@@ -115,7 +122,7 @@ function MediaPage() {
         });
 
         const ranges = getRanges(response.data.data.Media.episodes);
-        const newMediaData = { ...response.data.data.Media, ranges: JSON.stringify(ranges) };
+        const newMediaData = { ...response.data.data.Media, ranges: JSON.stringify(ranges), genres: JSON.stringify(response.data.data.Media.genres) };
         newMediaData.coverImage = newMediaData.coverImage.large;
         newMediaData.title = newMediaData.title.english || newMediaData.title.romaji;
         newMediaData.trailer = newMediaData.trailer ? newMediaData.trailer.id : null;
@@ -138,11 +145,12 @@ function MediaPage() {
             newMediaData.ranges = JSON.stringify(getRanges(response1.data.length));
             setMediaData(newMediaData);
           }
+          newMediaData.selectedRange = 0;
 
           // Sync with backend
           await axios.post('http://localhost:3001/update-anime', { ...newMediaData, episodesData: response1.data });
 
-          setSelectedRange(JSON.parse(newMediaData.ranges)[0]);
+          setSelectedRange(JSON.parse(newMediaData.ranges)[newMediaData.selectedRange]);
           toast.close('loading-episodes');
         } catch (error) {
           console.log(error);
@@ -175,7 +183,7 @@ function MediaPage() {
           console.log(`Using cached data for media ${mediaId}`);
           setMediaData(cachedMedia);
           setEpisodesData(cachedMedia.episodesData);
-          setSelectedRange(JSON.parse(cachedMedia.ranges)[0]);
+          setSelectedRange(JSON.parse(cachedMedia.ranges)[cachedMedia.selectedRange]);
         } else {
           console.log(`Updating cached data for media ${mediaId}`);
           const response1 = await axios.get(`http://localhost:3000/meta/anilist/episodes/${mediaId}`);
@@ -217,7 +225,7 @@ function MediaPage() {
 
           setMediaData(cachedMedia);
           setEpisodesData(cachedMedia.episodesData);
-          setSelectedRange(JSON.parse(cachedMedia.ranges)[0]);
+          setSelectedRange(JSON.parse(cachedMedia.ranges)[cachedMedia.selectedRange]);
         }
       } catch (error) {
         console.log('Requesting data for media');
@@ -351,18 +359,26 @@ function MediaPage() {
   useEffect(() => {
     if (mediaData) {
       setEpisodeRanges(
-        <Box display='flex' justifyContent='space-evenly' flexWrap='wrap' marginTop='12px'>
-          {JSON.parse(mediaData.ranges).map((range, ep) => (
+        <Box display='flex' justifyContent='center' flexWrap='wrap' gap='12px' marginTop='12px'>
+          {JSON.parse(mediaData.ranges).map((range, index) => (
             <Box
-              key={ep}
-              padding='6px'
-              borderRadius='5px'
+              key={index}
+              padding='8px 16px'
+              borderRadius='8px'
               borderWidth='1px'
-              display='inline-block'
-              style={{ cursor: 'pointer' }}
-              _hover={{ bgColor: range === selectedRange ? 'gray.500' : 'gray.100' }}
-              bgColor={range === selectedRange ? 'gray.500' : 'white'}
-              onClick={() => setSelectedRange(range)}
+              borderColor={range === selectedRange ? variants.mocha.pink.hex : variants.mocha.overlay0.hex}
+              backgroundColor={range === selectedRange ? variants.mocha.surface0.hex : variants.mocha.base.hex}
+              color={range === selectedRange ? variants.mocha.text.hex : variants.mocha.subtext1.hex}
+              cursor='pointer'
+              _hover={{
+                bg: range === selectedRange ? variants.mocha.pink.hex : variants.mocha.overlay2.hex,
+                color: range === selectedRange ? variants.mocha.base.hex : variants.mocha.text.hex,
+              }}
+              onClick={() => {
+                setSelectedRange(range)
+                updateSelectedRange(index)
+              }}
+              transition='all 0.2s ease-in-out'
             >
               {range}
             </Box>
@@ -379,15 +395,34 @@ function MediaPage() {
         <Box paddingY='60px' display='flex' flexDir='column' bgColor={variants.mocha.base.hex}>
           <Image src={mediaData.bannerImage} height='320px' objectFit='cover' />
           <Box width={boxWidth} alignSelf='center'>
-            <Box display='flex' flexDirection='row' width='100%' height='193px' alignSelf='center'>
-              <Image src={mediaData.coverImage} width='230px' height='323px' marginTop='-130px' />
+            {/* anime description */}
+            <Box display='flex' flexDirection='row' width='100%' height='200px' alignSelf='center'>
+              <Image src={mediaData.coverImage} width='230px' height='323px' marginTop='-130px' border='2px' borderColor={variants.mocha.base.hex} />
               <Box display='flex' flexDirection='column' margin='15px'>
                 <Heading color={variants.mocha.text.hex}>{mediaData.title}</Heading>
+                <Box display='flex' flexWrap='wrap' gap='8px' marginTop='10px'>
+                  {JSON.parse(mediaData.genres).map((genre, index) => (
+                    <Text
+                      key={index}
+                      paddingX='8px'
+                      paddingY='4px'
+                      borderRadius='5px'
+                      backgroundColor={variants.mocha.surface0.hex}  // Background color for tags
+                      border={`1px solid ${variants.mocha.overlay0.hex}`}  // Border color
+                      color={variants.mocha.pink.hex}  // Text color
+                      fontWeight='bold'
+                      fontSize='14px'
+                    >
+                      {genre}
+                    </Text>
+                  ))}
+                </Box>
                 <Text
                   color={variants.mocha.subtext0.hex}
                   dangerouslySetInnerHTML={{ __html: mediaData.description }}
                   overflow='auto'
                   maxHeight='130px'
+                  marginTop='10px'
                 />
               </Box>
             </Box>

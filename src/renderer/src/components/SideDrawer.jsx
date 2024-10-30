@@ -1,7 +1,7 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
+import axios from 'axios';
 import {
   Box,
-  Heading,
   Text,
   Icon,
   useDisclosure,
@@ -13,7 +13,6 @@ import {
   DrawerContent,
   DrawerCloseButton,
   Button,
-  Input,
   IconButton,
   useToast,
 } from '@chakra-ui/react';
@@ -23,11 +22,57 @@ import { useNavigate } from 'react-router-dom';
 import { IoMdHome } from "react-icons/io";
 import { SiAnilist } from "react-icons/si";
 
+const client_id = 18725;
+
 function SideDrawer() {
-  const { isOpen, onOpen, onClose } = useDisclosure()
+  const { isOpen, onOpen, onClose } = useDisclosure();
   const btnRef = useRef();
   const navigate = useNavigate();
   const toast = useToast();
+
+  const handleOAuthResponse = async () => {
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get('access_token');
+    console.log(hash)
+
+    if (accessToken) {
+      try {
+        // Send the token to the auth server to be securely stored
+        const response = await axios.post('http://127.0.0.1:8000/auth-anilist', {
+          token: accessToken,
+        });
+
+        if (response.status === 200) {
+          toast({
+            title: 'Token saved successfully!',
+            status: 'success',
+            duration: 3000,
+            isClosable: true,
+          });
+        }
+      } catch (error) {
+        console.error('Error saving token:', error);
+        toast({
+          title: 'Error saving token',
+          description: error.message,
+          status: 'error',
+          duration: 3000,
+          isClosable: true,
+        });
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Trigger handleOAuthResponse whenever the hash changes (after authorization)
+    window.addEventListener('hashchange', handleOAuthResponse);
+
+    // Cleanup the event listener on unmount
+    return () => {
+      window.removeEventListener('hashchange', handleOAuthResponse);
+    };
+  }, []);
 
   return (
     <Box>
@@ -102,9 +147,7 @@ function SideDrawer() {
                 backgroundColor: 'rgba(169, 169, 169, 0.2)',
               }}
               onClick={() => {
-                const client_id = 18725;
-                const redirect_uri = 'http://127.0.0.1:8000/anilist/';
-                window.open(`https://anilist.co/api/v2/oauth/authorize?client_id=${client_id}&redirect_uri=${redirect_uri}&response_type=code`, '_blank');
+                window.open(`https://anilist.co/api/v2/oauth/authorize?client_id=${client_id}&response_type=token`, '_blank');
                 onClose();
               }}
               display='flex'
@@ -130,4 +173,3 @@ function SideDrawer() {
 }
 
 export default SideDrawer;
-

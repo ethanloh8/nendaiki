@@ -1,11 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   useToast,
   IconButton,
   Text,
   Heading,
-  Image
+  Image,
+  Button,
+  AlertDialog,
+  AlertDialogOverlay,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogBody,
+  AlertDialogFooter
 } from '@chakra-ui/react';
 import { DeleteIcon } from '@chakra-ui/icons';
 import Bar from './components/Bar';
@@ -16,49 +23,38 @@ import axios from 'axios';
 
 function HistoryPage() {
   const toast = useToast();
-  const [historyData, setHistoryData] = useState([]); // History state from the backend
-  const [mediaData, setMediaData] = useState({}); // Anime data fetched from backend using get-anime-batch
+  const [historyData, setHistoryData] = useState([]);
+  const [mediaData, setMediaData] = useState({});
   const navigate = useNavigate();
   const [historyDisplay, setHistoryDisplay] = useState(null);
   const [boxWidth, setBoxWidth] = useState(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false); // State for confirmation dialog
+  const cancelRef = useRef();
 
+  // Handle resize for responsive layout
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth >= 1450) {
-        setBoxWidth('1350px');
-      } else if (window.innerWidth >= 1100) {
-        setBoxWidth('1000px');
-      } else if (window.innerWidth >= 750) {
-        setBoxWidth('650px');
-      } else {
-        setBoxWidth('300px');
-      }
+      if (window.innerWidth >= 1450) setBoxWidth('1350px');
+      else if (window.innerWidth >= 1100) setBoxWidth('1000px');
+      else if (window.innerWidth >= 750) setBoxWidth('650px');
+      else setBoxWidth('300px');
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Fetch history data from the backend
   useEffect(() => {
     const fetchHistory = async () => {
       try {
         const response = await axios.get('http://localhost:3001/get-history');
         const history = response.data;
-
         setHistoryData(history);
-
-        // Extract media IDs from history
         const mediaIds = history.map(item => item.idAndEpisode.split('-')[0]);
-
         if (mediaIds.length > 0) {
-          // Fetch anime data in a batch using the get-anime-batch endpoint
           const mediaResponse = await axios.post('http://localhost:3001/get-anime-batch', { ids: mediaIds });
-
-          // Set the media data
           setMediaData(mediaResponse.data);
         }
       } catch (error) {
@@ -71,8 +67,7 @@ function HistoryPage() {
         });
       }
     };
-
-    fetchHistory(); // Call the history fetch function
+    fetchHistory();
   }, [toast]);
 
   useEffect(() => {
@@ -80,21 +75,15 @@ function HistoryPage() {
 
     setHistoryDisplay(
       historyData
-        .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
         .map((element, index) => {
           const [mediaId, episodeIndexString] = element.idAndEpisode.split('-');
           const episodeIndex = parseInt(episodeIndexString);
-          const media = mediaData[mediaId]; // Fetch media data using mediaId
+          const media = mediaData[mediaId];
           if (!media) return null;
-
-          const episode = media.episodesData[episodeIndex]; // Fetch episode data
-          const formattedDate = new Date(element.date); // Format the date
-          let month = formattedDate.getMonth() + 1;
-          let day = formattedDate.getDate();
-          let year = formattedDate.getFullYear();
-          month = month < 10 ? `0${month}` : month;
-          day = day < 10 ? `0${day}` : day;
-          const formattedDateStr = `${month}/${day}/${year}`;
+          const episode = media.episodesData[episodeIndex];
+          const formattedDate = new Date(element.date);
+          const formattedDateStr = `${(formattedDate.getMonth() + 1).toString().padStart(2, '0')}/${formattedDate.getDate().toString().padStart(2, '0')}/${formattedDate.getFullYear()}`;
           const progress = episode.duration > 0 ? (episode.time / episode.duration) * 100 : 0;
 
           return (
@@ -128,7 +117,7 @@ function HistoryPage() {
             >
               <Box borderRadius='10px' position='relative'>
                 <Image
-                  src={episode.image} // Use the episode image
+                  src={episode.image}
                   width='100%'
                   height='169px'
                   objectFit='cover'
@@ -198,7 +187,7 @@ function HistoryPage() {
                   fontSize='14px'
                   color={variants.mocha.subtext0.hex}
                 >
-                  {formattedDateStr} {/* Display the formatted date */}
+                  {formattedDateStr}
                 </Text>
                 <DeleteIcon
                   margin='5px'
@@ -231,7 +220,7 @@ function HistoryPage() {
   const handleClearAll = async () => {
     try {
       await axios.delete('http://localhost:3001/delete-history-all');
-      setHistoryData([]); // Clear history state
+      setHistoryData([]);
       setHistoryDisplay(null);
       toast({
         title: 'History cleared',
@@ -249,27 +238,20 @@ function HistoryPage() {
         isClosable: true,
       });
     }
+    setIsDialogOpen(false);
   };
 
-  // TODO: make confirmation dialog before clearing all
   return (
     <Box>
       <Bar />
       <Box paddingY='60px' display='flex' flexDir='column' bgColor={variants.mocha.base.hex}>
-        <Box
-          display='flex'
-          flexDir='column'
-          justifySelf='center'
-          marginX='12%'
-          width={boxWidth}
-          alignSelf='center'
-        >
+        <Box display='flex' flexDir='column' justifySelf='center' marginX='12%' width={boxWidth} alignSelf='center'>
           <Box display='flex' flexDir='row' justifyContent='space-between' marginTop='40px'>
             <Heading color={variants.mocha.text.hex}>History</Heading>
             <Text
               color={variants.mocha.subtext0.hex}
               _hover={{ cursor: 'pointer' }}
-              onClick={handleClearAll}
+              onClick={() => setIsDialogOpen(true)}
             >
               Clear History
             </Text>
@@ -279,6 +261,32 @@ function HistoryPage() {
           </Box>
         </Box>
       </Box>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDialogOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={() => setIsDialogOpen(false)}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent borderRadius="10px" bgColor={variants.mocha.base.hex}>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold" color={variants.mocha.text.hex}>
+              Clear History
+            </AlertDialogHeader>
+            <AlertDialogBody color={variants.mocha.subtext1.hex}>
+              Are you sure you want to clear all history entries? This action cannot be undone.
+            </AlertDialogBody>
+            <AlertDialogFooter>
+              <Button ref={cancelRef} onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button colorScheme="red" onClick={handleClearAll} ml={3}>
+                Clear All
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
     </Box>
   );
 }
