@@ -30,43 +30,43 @@ function SideDrawer() {
   const navigate = useNavigate();
   const toast = useToast();
 
-  useEffect(() => {
-    window.electron.ipcRenderer.on('oauth-token-received', (event, token) => {
-      console.log('Access token received:', token);
-      toast({
-        title: 'OAuth Successful',
-        description: 'Access token acquired!',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
+  // useEffect(() => {
+  //   window.electron.ipcRenderer.on('oauth-token-received', (event, token) => {
+  //     console.log('Access token received:', token);
+  //     toast({
+  //       title: 'OAuth Successful',
+  //       description: 'Access token acquired!',
+  //       status: 'success',
+  //       duration: 3000,
+  //       isClosable: true,
+  //     });
 
-      // Optionally send the token to your backend for secure storage
-      axios.post('http://127.0.0.1:8000/auth-anilist', { token })
-        .then(() => {
-          toast({
-            title: 'Token saved successfully!',
-            status: 'success',
-            duration: 3000,
-            isClosable: true,
-          });
-        })
-        .catch((error) => {
-          console.error('Error saving token:', error);
-          toast({
-            title: 'Error saving token',
-            description: error.message,
-            status: 'error',
-            duration: 3000,
-            isClosable: true,
-          });
-        });
-    });
+  //     // Optionally send the token to your backend for secure storage
+  //     axios.post('http://127.0.0.1:8000/auth-anilist', { token })
+  //       .then(() => {
+  //         toast({
+  //           title: 'Token saved successfully!',
+  //           status: 'success',
+  //           duration: 3000,
+  //           isClosable: true,
+  //         });
+  //       })
+  //       .catch((error) => {
+  //         console.error('Error saving token:', error);
+  //         toast({
+  //           title: 'Error saving token',
+  //           description: error.message,
+  //           status: 'error',
+  //           duration: 3000,
+  //           isClosable: true,
+  //         });
+  //       });
+  //   });
 
-    return () => {
-      window.electron.ipcRenderer.removeAllListeners('oauth-token-received');
-    };
-  }, []);
+  //   return () => {
+  //     window.electron.ipcRenderer.removeAllListeners('oauth-token-received');
+  //   };
+  // }, []);
 
   return (
     <Box>
@@ -134,24 +134,24 @@ function SideDrawer() {
               <RepeatClockIcon color={variants.mocha.text.hex} boxSize='20px' />
               <Text fontSize='16px' color={variants.mocha.subtext0.hex}>History</Text>
             </Box>
-            <Box
-              width='100%'
-              _hover={{
-                cursor: 'pointer',
-                backgroundColor: 'rgba(169, 169, 169, 0.2)',
-              }}
-              onClick={() => {
-                window.open(`https://anilist.co/api/v2/oauth/authorize?client_id=${client_id}&response_type=token`, '_blank');
-                onClose();
-              }}
-              display='flex'
-              columnGap='20px'
-              paddingX='20px'
-              paddingY='8px'
-            >
-              <SiAnilist color={variants.mocha.text.hex} boxSize='20px' />
-              <Text fontSize='16px' color={variants.mocha.subtext0.hex}>Anilist Integration</Text>
-            </Box>
+            {/* <Box */}
+            {/*   width='100%' */}
+            {/*   _hover={{ */}
+            {/*     cursor: 'pointer', */}
+            {/*     backgroundColor: 'rgba(169, 169, 169, 0.2)', */}
+            {/*   }} */}
+            {/*   onClick={() => { */}
+            {/*     window.open(`https://anilist.co/api/v2/oauth/authorize?client_id=${client_id}&response_type=token`, '_blank'); */}
+            {/*     onClose(); */}
+            {/*   }} */}
+            {/*   display='flex' */}
+            {/*   columnGap='20px' */}
+            {/*   paddingX='20px' */}
+            {/*   paddingY='8px' */}
+            {/* > */}
+            {/*   <SiAnilist color={variants.mocha.text.hex} boxSize='20px' /> */}
+            {/*   <Text fontSize='16px' color={variants.mocha.subtext0.hex}>Anilist Integration</Text> */}
+            {/* </Box> */}
           </DrawerBody>
 
           <DrawerFooter>
