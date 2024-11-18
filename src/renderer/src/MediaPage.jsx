@@ -14,6 +14,7 @@ import { variants } from '@catppuccin/palette';
 import axios from 'axios';
 import { IoMdPlay } from "react-icons/io";
 
+// TODO: error if response from consumet api is an html response
 // TODO: make components adjust to window size
 // TODO: improve anime description panel
 function MediaPage() {
@@ -187,6 +188,7 @@ function MediaPage() {
         } else {
           console.log(`Updating cached data for media ${mediaId}`);
           const response1 = await axios.get(`http://localhost:3000/meta/anilist/episodes/${mediaId}`);
+          console.log(response1)
 
           // If new episodes are available, add them to the cached episodes
           const newEpisodes = response1.data.slice(cachedMedia.episodesData.length); // Get only new episodes

@@ -35,6 +35,7 @@
     "lodash": "^4.17.21",
     "mediaelement": "^7.0.2",
     "plyr": "^3.7.8",
+    "portfinder": "^1.0.32",
     "puppeteer": "^23.6.0",
     "react-autosuggest": "^10.1.0",
     "react-icons": "^4.12.0",

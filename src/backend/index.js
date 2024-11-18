@@ -5,6 +5,7 @@ const sqlite3 = require('sqlite3').verbose();
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const portfinder = require('portfinder');
 
 const app = express();
 const port = 3001;
@@ -12,7 +13,8 @@ const port = 3001;
 app.use(cors());
 app.use(express.json());
 
-// TODO: export/import database
+// TODO: ability to export/import database
+// TODO: have this and consumet api be able to use any open port, which the renderer can also make requests to
 const getDatabasePath = () => {
   let dbPath;
   const baseDir = os.platform() === 'win32'
@@ -350,3 +352,4 @@ app.use((req, res) => {
 app.listen(port, '127.0.0.1', () => {
   console.log('Backend server listening on port %d in %s mode', port, app.settings.env);
 });
+

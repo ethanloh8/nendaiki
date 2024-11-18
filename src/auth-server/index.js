@@ -42,8 +42,9 @@ app.post('/auth-anilist', async (req, res) => {
   }
 
   try {
-    req.session.token = token;
-    await keytar.setPassword('anilist', 'oauth_token', token);
+    console.log(token)
+    // req.session.token = token;
+    // await keytar.setPassword('anilist', 'oauth_token', token);
 
     return res.status(200).json({ success: 'Token saved successfully' });
   } catch (error) {

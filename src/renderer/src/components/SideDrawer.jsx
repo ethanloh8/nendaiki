@@ -30,47 +30,41 @@ function SideDrawer() {
   const navigate = useNavigate();
   const toast = useToast();
 
-  const handleOAuthResponse = async () => {
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    const accessToken = params.get('access_token');
-    console.log(hash)
+  useEffect(() => {
+    window.electron.ipcRenderer.on('oauth-token-received', (event, token) => {
+      console.log('Access token received:', token);
+      toast({
+        title: 'OAuth Successful',
+        description: 'Access token acquired!',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
 
-    if (accessToken) {
-      try {
-        // Send the token to the auth server to be securely stored
-        const response = await axios.post('http://127.0.0.1:8000/auth-anilist', {
-          token: accessToken,
-        });
-
-        if (response.status === 200) {
+      // Optionally send the token to your backend for secure storage
+      axios.post('http://127.0.0.1:8000/auth-anilist', { token })
+        .then(() => {
           toast({
             title: 'Token saved successfully!',
             status: 'success',
             duration: 3000,
             isClosable: true,
           });
-        }
-      } catch (error) {
-        console.error('Error saving token:', error);
-        toast({
-          title: 'Error saving token',
-          description: error.message,
-          status: 'error',
-          duration: 3000,
-          isClosable: true,
+        })
+        .catch((error) => {
+          console.error('Error saving token:', error);
+          toast({
+            title: 'Error saving token',
+            description: error.message,
+            status: 'error',
+            duration: 3000,
+            isClosable: true,
+          });
         });
-      }
-    }
-  };
+    });
 
-  useEffect(() => {
-    // Trigger handleOAuthResponse whenever the hash changes (after authorization)
-    window.addEventListener('hashchange', handleOAuthResponse);
-
-    // Cleanup the event listener on unmount
     return () => {
-      window.removeEventListener('hashchange', handleOAuthResponse);
+      window.electron.ipcRenderer.removeAllListeners('oauth-token-received');
     };
   }, []);
 

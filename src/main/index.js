@@ -72,11 +72,6 @@ app.whenReady().then(() => {
       backendProcess.kill();
     }
   });
-
-  ipcMain.on('oauth-code', (code) => {
-    // Handle the OAuth code here, you can pass it to the renderer process if needed
-    console.log('Received OAuth code:', code);
-  });
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common
