@@ -61,6 +61,6 @@ npm run dev
 This will start the app on http://localhost:5173.
 
 ## TODO
-- [x] Anilist integration
-- [x] Local anime list
-- [x] Export data
+- [ ] Anilist integration
+- [ ] Local anime list
+- [ ] Export data
